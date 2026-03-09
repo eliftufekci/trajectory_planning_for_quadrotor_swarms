@@ -1,33 +1,16 @@
-!git clone -b roadmap_generation https://github.com/eliftufekci/trajectory_planning_for_quadrotor_swarms.git
+git clone -b roadmap_generation https://github.com/eliftufekci/trajectory_planning_for_quadrotor_swarms.git
 
-!sudo apt-get update
-!sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev
+sudo apt-get update
+sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev
 
-import os
-project_root = '/content/trajectory_planning_for_quadrotor_swarms/'
-build_dir = os.path.join(project_root, 'build')
+mkdir  /content/trajectory_planning_for_quadrotor_swarms/build
 
-if not os.path.exists(build_dir):
-    os.makedirs(build_dir)
-    print(f"Created directory: {build_dir}")
-else:
-    print(f"Directory already exists: {build_dir}")
+cd /content/trajectory_planning_for_quadrotor_swarms/build
 
-import os
+cmake ..
 
-# Ensure we are in the build directory to run make
-# The build_dir variable was defined in a previous step.
-make_command = f"cd {build_dir} && make"
+make
 
-print(f"Executing: {make_command}")
-get_ipython().system(make_command)
+./env_test ../config/environment.yaml
 
-import os
-
-# Ensure we are in the build directory to run the executable
-# The build_dir variable was defined in a previous step.
-config_path = os.path.join(project_root, 'config', 'environment.yaml')
-run_command = f"cd {build_dir} && ./env_test {config_path}"
-
-print(f"Executing: {run_command}")
-get_ipython().system(run_command)
+python visualize.py

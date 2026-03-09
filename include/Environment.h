@@ -93,7 +93,6 @@ public:
             for (double x = aabb.min.x(); x <= aabb.max.x(); x += resolution) {
                 for (double y = aabb.min.y(); y <= aabb.max.y(); y += resolution) {
                     for (double z = aabb.min.z(); z <= aabb.max.z(); z += resolution) {
-                        //                          ↑ burada x değil z!
                         env.tree->updateNode(octomap::point3d(
                             static_cast<float>(x),
                             static_cast<float>(y),
