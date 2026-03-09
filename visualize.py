@@ -6,9 +6,6 @@ import matplotlib.patches as mpatches
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-# ─────────────────────────────────────────────
-#  CSV okuyucular
-# ─────────────────────────────────────────────
 
 def load_environment_csv(path="build/environment_data.csv"):
     """environment_data.csv → world bounds, obstacles, agents"""
@@ -55,9 +52,7 @@ def load_edges_csv(path="build/edges.csv"):
             edges.append((int(row["from"]), int(row["to"]), float(row["cost"])))
     return edges
 
-# ─────────────────────────────────────────────
-#  Çizim yardımcıları
-# ─────────────────────────────────────────────
+
 
 def draw_box_3d(ax, mn, mx, facecolor, alpha=0.35, edgecolor="white", lw=0.6):
     x0,y0,z0 = mn;  x1,y1,z1 = mx
@@ -94,9 +89,7 @@ PALETTE = {
     "vertex":   "#ffffff",
 }
 
-# ─────────────────────────────────────────────
-#  1. 3D Görünüm
-# ─────────────────────────────────────────────
+
 
 def plot_3d(env, voxels, vertices, edges, out="environment_3d.png"):
     fig = plt.figure(figsize=(14, 10))
@@ -179,9 +172,9 @@ def plot_3d(env, voxels, vertices, edges, out="environment_3d.png"):
     plt.close()
     print(f"Kaydedildi: {out}")
 
-# ─────────────────────────────────────────────
+# ───────────────────────────────────
 #  2. Üstten görünüm (X-Y)
-# ─────────────────────────────────────────────
+# ───────────────────────────────────
 
 def plot_topdown(env, vertices, edges, out="environment_topdown.png"):
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -255,9 +248,9 @@ def plot_topdown(env, vertices, edges, out="environment_topdown.png"):
     plt.close()
     print(f"Kaydedildi: {out}")
 
-# ─────────────────────────────────────────────
+# ───────────────────────────────────
 #  3. Yan görünüm (X-Z)
-# ─────────────────────────────────────────────
+# ───────────────────────────────────
 
 def plot_sideview(env, vertices, edges, out="environment_side.png"):
     fig, ax = plt.subplots(figsize=(12, 7))
@@ -312,13 +305,14 @@ def plot_sideview(env, vertices, edges, out="environment_side.png"):
     plt.close()
     print(f"Kaydedildi: {out}")
 
-# ─────────────────────────────────────────────
+# ───────────────────────────────────
 #  Main
-# ─────────────────────────────────────────────
+# ───────────────────────────────────
 
 def main():
     # CSV'lerin yolu (build/ dizini scriptle aynı seviyede)
-    base = os.path.dirname(os.path.abspath(__file__))
+    global project_root # Ensure project_root is accessible
+    base = project_root
     build = os.path.join(base, "build")
 
     env_csv  = os.path.join(build, "environment_data.csv")
