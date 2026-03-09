@@ -4,13 +4,14 @@
 #include <vector>
 #include <unordered_map>
 #include <fstream>
+#include <stdexcept>
 
 
 struct Vertex{
     int id;
     Eigen::Vector3d pos;
-    
-    Vertex(int id, Eigen::Vector3d pos) : id(id), pos(pos) {}
+
+    Vertex(int id, const Eigen::Vector3d& pos) : id(id), pos(pos) {}
 };
 
 
@@ -25,58 +26,72 @@ struct Edge{
 
 class Graph{
 public:
-
     std::vector<Vertex> vertices;
     std::vector<Edge> edges;
-
     std::unordered_map<int, std::vector<int>> adjacency;
 
-    int addVertex(Eigen::Vector3d pos){
-        int id = vertices.size();
+    // ── Vertex ekle, id döndür ────────────────────────────────────────
+    int addVertex(const Eigen::Vector3d& pos) {
+        int id = static_cast<int>(vertices.size());
         vertices.emplace_back(id, pos);
         adjacency[id] = {};
         return id;
     }
 
-    //push_back: önce bir nesne oluşturur, sonra onu vector'ün içine kopyalar
-    //emplace_back:	nesneyi doğrudan vector'ün içinde oluşturur (constructor'ı orada çağırır)
+    // ── Kenar ekle (undirected), kenar indexini döndür ────────────────
+    void addEdge(int from, int to) {
+        if (from < 0 || from >= static_cast<int>(vertices.size()) ||
+            to   < 0 || to   >= static_cast<int>(vertices.size())){
+            throw std::out_of_range("addEdge: geçersiz vertex id");
+        }
 
-    int addEdge(int from, int to){
         double cost = (vertices[from].pos - vertices[to].pos).norm();
-        edges.emplace_back(from, to, cost);
-        edges.emplace_back(to, from, cost);  // Çift yönlü, undirected
+
+        // Çift yönlü kenar (undirected)
+        edges.emplace_back(from, to,   cost);
+        edges.emplace_back(to,   from, cost);
+
         adjacency[from].push_back(to);
         adjacency[to].push_back(from);
     }
 
-    //const: bu metodun değişkenleri değiştirmeyeceğinin sözünü verir
-    void printStats() const{
-        std::cout << "Graph: " << vertices.size() << " vertices, "
-                  << edges.size() / 2 << " edges\n";
+    // ── Komşuları döndür ─────────────────────────────────────────────
+    const std::vector<int>& neighbors(int id) const {
+        return adjacency.at(id);
     }
 
-    void saveToCSV(const std::string& vertex_file,
-                   const std::string& edge_file) const {
-        // Vertex'leri kaydet
-        std::ofstream vf(vertex_file);
-        vf << "id,x,y,z\n";
-        for (const auto& v : vertices) {
-            vf << v.id << "," << v.pos.x() << ","
-               << v.pos.y() << "," << v.pos.z() << "\n";
-        }
+    // ── İstatistik ───────────────────────────────────────────────────
+    void printStats() const {
+        std::cout << "Graph: "
+                  << vertices.size()     << " vertices, "
+                  << edges.size() / 2    << " edges\n";
+    }
 
-        // Edge'leri kaydet
+    // ── CSV'ye kaydet ─────────────────────────────────────────────────
+    void saveToCSV(const std::string& vertex_file,
+                   const std::string& edge_file) const{
+                    
+        // Vertex'ler
+        std::ofstream vf(vertex_file);
+        if (!vf) throw std::runtime_error("Vertex dosyası açılamadı: " + vertex_file);
+        vf << "id,x,y,z\n";
+        for (const auto& v : vertices)
+            vf << v.id << ","
+               << v.pos.x() << "," << v.pos.y() << "," << v.pos.z() << "\n";
+
+        // Edge'ler (her çifti bir kere yaz: from < to)
         std::ofstream ef(edge_file);
-        ef << "from_x,from_y,from_z,to_x,to_y,to_z\n";
-        for (const auto& edge : edges) {
-            if (edge.from < edge.to) {  // Duplicate'leri atla
-                const auto& a = vertices[edge.from].pos;
-                const auto& b = vertices[edge.to].pos;
-                ef << a.x() << "," << a.y() << "," << a.z() << ","
+        if (!ef) throw std::runtime_error("Edge dosyası açılamadı: " + edge_file);
+        ef << "from,to,cost,from_x,from_y,from_z,to_x,to_y,to_z\n";
+        for (const auto& e : edges) {
+            if (e.from < e.to) {
+                const auto& a = vertices[e.from].pos;
+                const auto& b = vertices[e.to  ].pos;
+                ef << e.from << "," << e.to << "," << e.cost << ","
+                   << a.x() << "," << a.y() << "," << a.z() << ","
                    << b.x() << "," << b.y() << "," << b.z() << "\n";
             }
         }
-        std::cout << "Saved: " << vertex_file << ", " << edge_file << "\n";
+        std::cout << "Kaydedildi: " << vertex_file << ", " << edge_file << "\n";
     }
-
 };
