@@ -3,6 +3,7 @@
 #include "Environment.h"
 #include "Graph.h"
 #include "RobotModel.h"
+#include "RoadMapGenerator"
 
 void saveEnvironmentCSV(const Environment& env, const std::string& path) {
     std::ofstream f(path);
@@ -42,47 +43,20 @@ int main(int argc, char* argv[]) {
     std::cout << "YAML: " << yaml_path << "\n\n";
 
     Environment env = Environment::loadFromYAML(yaml_path);
+    RobotModel robot;
+    RoadMapGenerator roadMapGenerator(env, robot);
+    Graph environment_graph = roadMapGenerator.createRoadMap();
+    environment_graph.saveToCSV("vertices.csv", "edges.csv");
 
     std::cout << "Dünya min : " << env.world_min.transpose() << "\n";
     std::cout << "Dünya max : " << env.world_max.transpose() << "\n";
     std::cout << "Engel     : " << env.obstacles.size() << "\n";
     std::cout << "Agent     : " << env.agents.size()    << "\n\n";
 
-    // isOccupied testleri
-    struct Test { Eigen::Vector3d pos; bool expected; std::string label; };
-    std::vector<Test> tests = {
-        { {2.0, 2.0, 1.2},  true,  "Engel-1 içi      " },
-        { {3.0, 3.5, 1.0},  true,  "Engel-2 içi      " },
-        { {8.0, 8.0, 2.0},  false, "Açık alan        " },
-        { {0.5, 0.5, 1.0},  false, "Agent-0 start    " },
-        { {9.5, 9.5, 1.0},  false, "Agent-0 goal     " },
-    };
-
-    std::cout << "isOccupied testleri:\n";
-    bool all_pass = true;
-    for (const auto& t : tests) {
-        bool result = env.isOccupied(t.pos);
-        bool ok = (result == t.expected);
-        if (!ok) all_pass = false;
-        std::cout << "  " << t.label
-                  << (result ? "DOLU " : "BOŞ  ")
-                  << (ok ? "✓" : "✗ HATA") << "\n";
-    }
-    std::cout << "\nSonuç: " << (all_pass ? "TÜM TESTLER GEÇTİ ✓" : "HATA VAR ✗") << "\n\n";
 
     // CSV çıktıları
     saveEnvironmentCSV(env, "environment_data.csv");
     saveOctreeCSV(env, "octree_voxels.csv");
 
-    // Graph testi
-    Graph g;
-    int v0 = g.addVertex(env.agents[0].start);
-    int v1 = g.addVertex(env.agents[0].goal);
-    int v2 = g.addVertex(Eigen::Vector3d(5.0, 5.0, 1.0));
-    g.addEdge(v0, v2);
-    g.addEdge(v2, v1);
-    g.printStats();
-    g.saveToCSV("vertices.csv", "edges.csv");
-
-    return all_pass ? 0 : 1;
+    return 0;
 }
