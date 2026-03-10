@@ -44,7 +44,8 @@ int main(int argc, char* argv[]) {
 
     Environment env = Environment::loadFromYAML(yaml_path);
     RobotModel robot;
-    RoadMapGenerator roadMapGenerator(env, robot);
+    double step_size = 1.0;
+    RoadMapGenerator roadMapGenerator(env, robot, step_size);
     Graph environment_graph = roadMapGenerator.createRoadMap();
     environment_graph.saveToCSV("vertices.csv", "edges.csv");
 

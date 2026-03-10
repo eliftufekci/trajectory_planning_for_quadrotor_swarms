@@ -96,7 +96,7 @@ private:
                 // Çifte kenar eklemeyi önle (id1 < id2)
                 if (id1 >= id2) continue;
 
-                if (env.isEdgeFree(pos, neighbor, robot.r_env)) {
+                if (env.isEdgeFree(pos, neighbor, robot.r_env, grid_step)) {
                     graph.addEdge(id1, id2);
                 }
             }
@@ -115,28 +115,30 @@ private:
 
     // Nokta indexMap'te yoksa vertex ekle + en yakın vertex'e bağla
     void connectPoint(const Eigen::Vector3d& point,
-                      Graph& graph,
-                      std::map<std::tuple<int,int,int>, int>& indexMap)
-    {
-        auto key = toKey(point);
-        if (indexMap.count(key)) return;   // zaten grid'de var
+                    Graph& graph,
+                    std::map<std::tuple<int,int,int>, int>& indexMap){
 
+        // Zaten birebir grid noktasıysa ek işlem yok
+        auto key = toKey(point);
+        if (indexMap.count(key)) {
+            if ((toPos(key) - point).norm() < 1e-6) return;
+        }
+
+        // Vertex ekle (indexMap'e YAZMA — grid'i bozma)
+        int id = graph.addVertex(point);
+
+        // Tüm grid vertex'leri arasından en yakını bul
         double minDist = std::numeric_limits<double>::max();
         int nearestId = -1;
-
         for (const auto& [k, vid] : indexMap) {
             double dist = (toPos(k) - point).norm();
             if (dist < minDist) {
-                minDist   = dist;
+                minDist = dist;
                 nearestId = vid;
             }
         }
 
-        int id = graph.addVertex(point);
-        indexMap[key] = id;
-
-        if (nearestId != -1) {
+        if (nearestId != -1)
             graph.addEdge(id, nearestId);
-        }
     }
 };

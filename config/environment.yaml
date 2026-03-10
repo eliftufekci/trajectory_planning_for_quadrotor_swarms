@@ -1,17 +1,38 @@
 world_bounds:
     min: [0.0, 0.0, 0.0]
-    max: [16.0, 16.0, 16.0]
+    max: [9.0, 5.5, 2.2]
 
 obstacles:
--   min: [1.0, 1.0, 1.0]
-    max: [3.0, 3.0, 1.5]
--   min: [4.0, 4.0, 4.0]
-    max: [7.0, 7.0, 7.0]
+  # Orta bölgede büyük bir blok (Merkezi Engel)
+  - min: [3.5, 1.5, 0.0]
+    max: [5.5, 4.0, 2.0]
+  # Sol üst köşeye yakın bir sütun
+  - min: [1.0, 3.5, 0.0]
+    max: [2.0, 5.0, 1.5]
+  # Sağ alt köşeye yakın alçak bir engel
+  - min: [6.5, 1.0, 0.0]
+    max: [8.0, 2.5, 0.8]
+  # İnce, tavandan sarkan bir engel (Z ekseninde üstte)
+  - min: [4.0, 0.0, 1.5]
+    max: [5.0, 1.0, 2.2]
 
 agents:
--   id: 0
+  # Ajan 0: Sol alt köşeden başlar, sağ üst çapraza gider
+  - id: 0
     start: [0.5, 0.5, 0.5]
-    goal: [9.5, 9.5, 9.0]
--   id: 1
-    start: [1.0, 0.5, 1.0]
-    goal: [8.5, 9.5, 8.0]
+    goal: [8.5, 4.5, 1.8]
+  
+  # Ajan 1: Sol orta kısımdan başlar, sağ alt köşeye gider
+  - id: 1
+    start: [0.5, 2.5, 1.0]
+    goal: [8.5, 0.5, 0.5]
+  
+  # Ajan 2: Alt ortadan başlar, üst ortaya (engelin arkasına) gider
+  - id: 2
+    start: [4.5, 0.5, 0.3]
+    goal: [4.5, 5.0, 1.5]
+  
+  # Ajan 3: Sağ üstten başlar, sol ortaya gelir (ters trafik)
+  - id: 3
+    start: [8.0, 5.0, 1.0]
+    goal: [1.5, 2.0, 0.5]
