@@ -153,8 +153,8 @@ public:
                 for (double dy : {-r_robot, 0.0, r_robot}) {
                     for (double dz : {-r_robot, 0.0, r_robot}) {
                         Eigen::Vector3d sample = p + Eigen::Vector3d(dx, dy, dz);
-                        if (!inBounds(sample) || isOccupied(sample))
-                            return false;
+                        if (!inBounds(sample)) continue;
+                        if (isOccupied(sample)) return false;
                     }
                 }
             }

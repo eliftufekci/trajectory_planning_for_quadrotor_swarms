@@ -3,7 +3,7 @@
 #include "Environment.h"
 #include "Graph.h"
 #include "RobotModel.h"
-#include "RoadMapGenerator"
+#include "RoadMapGenerator.h"
 
 void saveEnvironmentCSV(const Environment& env, const std::string& path) {
     std::ofstream f(path);

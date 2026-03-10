@@ -121,21 +121,19 @@ private:
         auto key = toKey(point);
         if (indexMap.count(key)) return;   // zaten grid'de var
 
-        int id = graph.addVertex(point);
-        indexMap[key] = id;
-
-        // En yakın grid vertex'ini bul
         double minDist = std::numeric_limits<double>::max();
         int nearestId = -1;
 
         for (const auto& [k, vid] : indexMap) {
-            if (vid == id) continue;                // kendisi
             double dist = (toPos(k) - point).norm();
             if (dist < minDist) {
-                minDist = dist;
+                minDist   = dist;
                 nearestId = vid;
             }
         }
+
+        int id = graph.addVertex(point);
+        indexMap[key] = id;
 
         if (nearestId != -1) {
             graph.addEdge(id, nearestId);
