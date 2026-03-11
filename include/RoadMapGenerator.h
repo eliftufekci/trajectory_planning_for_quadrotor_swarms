@@ -34,9 +34,11 @@ public:
 private:
     // ── Koordinatı tuple index'e çevir ───────────────────────────────
     std::tuple<int,int,int> toKey(double x, double y, double z) const {
-        return { static_cast<int>(round(x / grid_step)),
-                 static_cast<int>(round(y / grid_step)),
-                 static_cast<int>(round(z / grid_step)) };
+        return {
+            static_cast<int>(round((x - env.world_min.x()) / grid_step)),
+            static_cast<int>(round((y - env.world_min.y()) / grid_step)),
+            static_cast<int>(round((z - env.world_min.z()) / grid_step))
+        };
     }
 
     std::tuple<int,int,int> toKey(const Eigen::Vector3d& p) const {
@@ -46,24 +48,41 @@ private:
     // Tuple index'i gerçek koordinata çevir
     Eigen::Vector3d toPos(const std::tuple<int,int,int>& key) const {
         auto [ix, iy, iz] = key;
-        return { ix * grid_step, iy * grid_step, iz * grid_step };
+        return {
+            env.world_min.x() + ix * grid_step,
+            env.world_min.y() + iy * grid_step,
+            env.world_min.z() + iz * grid_step
+        };
     }
 
     // ── 1: engel olmayan noktaları vertex olarak ekle ─────────
     void addFreeVertices(Graph& graph,
-                         std::map<std::tuple<int,int,int>, int>& indexMap)
+                        std::map<std::tuple<int,int,int>, int>& indexMap)
     {
         const auto& wmin = env.world_min;
         const auto& wmax = env.world_max;
 
-        for (double x = wmin.x(); x <= wmax.x(); x += grid_step)
-        for (double y = wmin.y(); y <= wmax.y(); y += grid_step)
-        for (double z = wmin.z(); z <= wmax.z(); z += grid_step) {
+        // Kaç adım atılacağını önceden hesapla (sınır dahil)
+        int nx = static_cast<int>(std::ceil((wmax.x() - wmin.x()) / grid_step)) + 1;
+        int ny = static_cast<int>(std::ceil((wmax.y() - wmin.y()) / grid_step)) + 1;
+        int nz = static_cast<int>(std::ceil((wmax.z() - wmin.z()) / grid_step)) + 1;
+
+        for (int ix = 0; ix < nx; ++ix)
+        for (int iy = 0; iy < ny; ++iy)
+        for (int iz = 0; iz < nz; ++iz) {
+            double x = wmin.x() + ix * grid_step;
+            double y = wmin.y() + iy * grid_step;
+            double z = wmin.z() + iz * grid_step;
+
+            // Sınırı aşanları sınıra sabitle
+            x = std::min(x, wmax.x());
+            y = std::min(y, wmax.y());
+            z = std::min(z, wmax.z());
             Eigen::Vector3d point(x, y, z);
             if (env.isOccupied(point)) continue;
 
-            auto key = toKey(point);
-            if (indexMap.count(key)) continue;     // zaten eklendi
+            auto key = std::make_tuple(ix, iy, iz);
+            if (indexMap.count(key)) continue;
 
             int id = graph.addVertex(point);
             indexMap[key] = id;

@@ -311,7 +311,7 @@ def plot_sideview(env, vertices, edges, out="environment_side.png"):
 
 def main():
     # CSV'lerin yolu (build/ dizini scriptle aynı seviyede)
-    base = "/content/trajectory_planning_for_quadrotor_swarms"
+    base = "/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms"
     build = os.path.join(base, "build")
 
     env_csv  = os.path.join(build, "environment_data.csv")
