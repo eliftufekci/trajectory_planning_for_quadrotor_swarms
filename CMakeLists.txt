@@ -18,6 +18,14 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/include
 )
 
+include(FetchContent)
+FetchContent_Declare(
+  fcl
+  GIT_REPOSITORY https://github.com/flexible-collision-library/fcl.git
+  GIT_TAG        master
+)
+FetchContent_MakeAvailable(fcl)
+
 # ── Executable ───────────────────────────────────────────────────────
 add_executable(env_test
     src/main.cpp
@@ -27,6 +35,8 @@ target_link_libraries(env_test
     ${OCTOMAP_LIBRARIES}
     yaml-cpp
 )
+
+target_link_libraries(your_target PRIVATE fcl)
 
 # ── Build sonrası bilgi ──────────────────────────────────────────────
 message(STATUS "Eigen3   : ${EIGEN3_INCLUDE_DIRS}")

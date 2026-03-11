@@ -1,4 +1,5 @@
 #pragma once
+#include <eigen3/Eigen/src/Core/Matrix.h>
 #include <map>
 #include <tuple>
 #include <vector>
@@ -115,7 +116,7 @@ private:
                 // Çifte kenar eklemeyi önle (id1 < id2)
                 if (id1 >= id2) continue;
 
-                if (env.isEdgeFree(pos, neighbor, robot.r_env, grid_step)) {
+                if (env.isEdgeFree(pos, neighbor, robot.radius, grid_step)) {
                     graph.addEdge(id1, id2);
                 }
             }
@@ -146,18 +147,12 @@ private:
         // Vertex ekle (indexMap'e YAZMA — grid'i bozma)
         int id = graph.addVertex(point);
 
-        // Tüm grid vertex'leri arasından en yakını bul
-        double minDist = std::numeric_limits<double>::max();
-        int nearestId = -1;
+        double search_radius = grid_step * 1.5;
         for (const auto& [k, vid] : indexMap) {
             double dist = (toPos(k) - point).norm();
-            if (dist < minDist) {
-                minDist = dist;
-                nearestId = vid;
-            }
+            if(dist <= search_radius && env.isEdgeFree(point, toPos(k), robot.radius))
+                graph.addEdge(id, vid)
         }
 
-        if (nearestId != -1)
-            graph.addEdge(id, nearestId);
     }
 };

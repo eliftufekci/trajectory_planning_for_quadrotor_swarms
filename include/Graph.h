@@ -40,6 +40,10 @@ public:
 
     // ── Kenar ekle (undirected), kenar indexini döndür ────────────────
     void addEdge(int from, int to) {
+        auto& adj = adjacency[from];
+        if (std::find(adj.begin(), adj.end(), to) != adj.end()) 
+            return;
+
         if (from < 0 || from >= static_cast<int>(vertices.size()) ||
             to   < 0 || to   >= static_cast<int>(vertices.size())){
             throw std::out_of_range("addEdge: geçersiz vertex id");

@@ -1,4 +1,5 @@
 #pragma once
+#include "FCLCollisionChecker.h"
 #include <vector>
 #include <string>
 #include <stdexcept>
@@ -62,7 +63,6 @@ public:
     // OcTree'nin sahipliğini Environment üstleniyor (unique_ptr ile sızıntı yok)
     std::unique_ptr<octomap::OcTree> tree;
 
-    double robot_radius;
     Eigen::Vector3d world_min;
     Eigen::Vector3d world_max;
 
@@ -70,7 +70,7 @@ public:
     std::vector<Agent> agents;      // starts + goals buradan okunur
 
     // ── Varsayılan constructor (loadFromYAML kullanımı için) ─────────────
-    Environment() : tree(nullptr), robot_radius(0.1) {}
+    Environment() : tree(nullptr) {}
 
     // ── YAML'dan yükle — static factory ──────────────────────────────────
     static Environment loadFromYAML(const std::string& path, double resolution = 0.1) {
@@ -131,7 +131,7 @@ public:
     // step_ratio  : adım büyüklüğü = resolution * step_ratio (0 < ratio ≤ 1)
     bool isEdgeFree(const Eigen::Vector3d& a,
                     const Eigen::Vector3d& b,
-                    double r_robot,
+                    double robot_radius,
                     double step_ratio = 0.5) const
     {
         const double resolution = tree->getResolution();
@@ -149,9 +149,9 @@ public:
 
             // Robot hacmini temsil etmek için küresel örnekleme
             // (tam Minkowski için FCL kullanılabilir — bkz. makale Sec. IV)
-            for (double dx : {-r_robot, 0.0, r_robot}) {
-                for (double dy : {-r_robot, 0.0, r_robot}) {
-                    for (double dz : {-r_robot, 0.0, r_robot}) {
+            for (double dx : {-robot_radius, 0.0, robot_radius}) {
+                for (double dy : {-robot_radius, 0.0, robot_radius}) {
+                    for (double dz : {-robot_radius, 0.0, robot_radius}) {
                         Eigen::Vector3d sample = p + Eigen::Vector3d(dx, dy, dz);
                         if (!inBounds(sample)) continue;
                         if (isOccupied(sample)) return false;

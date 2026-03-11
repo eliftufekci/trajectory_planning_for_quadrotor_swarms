@@ -7,18 +7,18 @@
 // Quadrotor için: rx = ry << rz  (downwash modeli)
 struct RobotModel {
     // Ortam çakışması için robot hacmi (çevre engellere karşı)
-    double r_env;       // tek yarıçap (küre varsayımı — makale Sec. IV-A)
+    double radius;       // tek yarıçap (küre varsayımı — makale Sec. IV-A)
 
     // Robot-robot çakışması için ellipsoid yarıçapları (downwash)
     double rx, ry, rz;  // rx == ry << rz
 
     // ── Varsayılan: Crazyflie nano-quadrotor benzeri ──────────────────
     RobotModel()
-        : r_env(0.15)
+        : radius(0.15)
         , rx(0.15), ry(0.15), rz(0.5) {}
 
-    RobotModel(double r_env, double rx, double ry, double rz)
-        : r_env(r_env), rx(rx), ry(ry), rz(rz) {}
+    RobotModel(double radius, double rx, double ry, double rz)
+        : radius(radius), rx(rx), ry(ry), rz(rz) {}
 
     // ── İki robot çakışıyor mu? (ellipsoid-ellipsoid) ─────────────────
     // Basit yöntem: normalize edilmiş mesafe < 1 ise çakışma var
