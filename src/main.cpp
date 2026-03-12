@@ -4,7 +4,7 @@
 #include "FCLCollisionChecker.h"
 #include "Graph.h"
 #include "RobotModel.h"
-#include "RoadMapGenerator.h"
+#include "GridRoadMapGenerator.h"
 
 void saveEnvironmentCSV(const Environment& env, const std::string& path) {
     std::ofstream f(path);
@@ -47,8 +47,8 @@ int main(int argc, char* argv[]) {
     RobotModel robot;
     double step_size = 0.5;
     FCLCollisionChecker fclCollisionChecker(env, robot);
-    RoadMapGenerator roadMapGenerator(env, fclCollisionChecker, step_size);
-    Graph environment_graph = roadMapGenerator.createRoadMap();
+    GridRoadMapGenerator gridRoadMapGenerator(env, fclCollisionChecker, step_size);
+    Graph environment_graph = gridRoadMapGenerator.createRoadMap();
     environment_graph.saveToCSV("vertices.csv", "edges.csv");
 
     std::cout << "Dünya min : " << env.world_min.transpose() << "\n";

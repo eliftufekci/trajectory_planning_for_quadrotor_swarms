@@ -9,13 +9,13 @@
 #include "Graph.h"
 
 
-class RoadMapGenerator {
+class GridRoadMapGenerator {
 public:
     const Environment& env;
     double grid_step;
     const FCLCollisionChecker& collisionChecker;
 
-    RoadMapGenerator(const Environment& env,
+    GridRoadMapGenerator(const Environment& env,
                      const FCLCollisionChecker& collisionChecker,
                      double grid_step = 0.5)
         : env(env), collisionChecker(collisionChecker), grid_step(grid_step) {}
@@ -141,6 +141,7 @@ private:
         }
 
         // Vertex ekle (indexMap'e YAZMA — grid'i bozma)
+        
         int id = graph.addVertex(point);
 
         double search_radius = grid_step * 1.5;
