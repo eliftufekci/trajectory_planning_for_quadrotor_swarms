@@ -1,0 +1,30 @@
+world_bounds:
+    min: [0.0, 0.0, 0.0]
+    max: [5.0, 4.0, 2.0]
+
+obstacles:
+  # Tam ortada geçişi zorlaştıran bir sütun
+  - min: [2.0, 1.5, 0.0]
+    max: [3.0, 2.5, 2.0]
+  # Köşede bir blok
+  - min: [0.0, 3.0, 0.0]
+    max: [1.0, 4.0, 1.0]
+  # Sağ tarafta alçak bir engel
+  - min: [3.5, 0.5, 0.0]
+    max: [4.5, 1.5, 0.5]
+
+agents:
+  # Ajan 0: Sol alt köşeden sağ üst köşeye (Merkezi engelin yanından geçer)
+  - id: 0
+    start: [0.5, 0.5, 0.5]
+    goal: [4.5, 3.5, 1.5]
+  
+  # Ajan 1: Sağ alt köşeden sol üst köşeye (Ajan 0 ile yolları kesişir)
+  - id: 1
+    start: [4.5, 0.5, 1.0]
+    goal: [0.5, 3.5, 0.5]
+
+  # Ajan 2: Dar bir aralıktan geçiş testi
+  - id: 2
+    start: [2.5, 0.5, 1.5]
+    goal: [2.5, 3.5, 1.5]

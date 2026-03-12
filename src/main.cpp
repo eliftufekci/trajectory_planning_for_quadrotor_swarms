@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) {
 
     Environment env = Environment::loadFromYAML(yaml_path);
     RobotModel robot;
-    double step_size = 1.0;
+    double step_size = 0.5;
     FCLCollisionChecker fclCollisionChecker(env, robot);
     RoadMapGenerator roadMapGenerator(env, fclCollisionChecker, step_size);
     Graph environment_graph = roadMapGenerator.createRoadMap();

@@ -2,6 +2,7 @@
 #include "Environment.h"
 #include "RobotModel.h"
 #include <Eigen/Dense>
+#include <fcl/narrowphase/collision.h>
 #include <fcl/narrowphase/continuous_collision.h>
 #include <fcl/narrowphase/collision_object.h>
 #include <fcl/geometry/shape/box.h>
@@ -73,5 +74,27 @@ public:
         }
 
         return true;
+    }
+
+    bool isOccupied(const Eigen::Vector3d& pos) const {
+        // Robot başlangıç transform'u
+        fcl::Transform3d tf = fcl::Transform3d::Identity();
+        tf.translation() = pos;
+
+        // Robot CollisionObject — başlangıç pozisyonunda
+        fcl::CollisionObjectd sphere_obj(agent_sphere_, tf);
+
+        for (const auto& obs_obj : obsCollisionObjects) {
+            fcl::CollisionRequestd request;
+            fcl::CollisionResultd result;
+
+            fcl::collide(&sphere_obj, obs_obj.get(), request, result);
+
+            if (result.isCollision()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 };

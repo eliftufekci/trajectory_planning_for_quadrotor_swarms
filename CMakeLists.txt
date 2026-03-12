@@ -31,7 +31,7 @@ add_executable(env_test
     src/main.cpp
 )
 
-target_link_libraries(env_test PRIVATE
+target_link_libraries(env_test
     ${OCTOMAP_LIBRARIES}
     yaml-cpp
     fcl

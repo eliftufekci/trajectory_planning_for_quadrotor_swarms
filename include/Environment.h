@@ -112,11 +112,6 @@ public:
         return env;   // RVO/move semantics — kopyalama yok
     }
 
-    // ── Nokta boş mu? ──────────────────────────────────────────────────
-    bool isOccupied(const Eigen::Vector3d& pos) const {
-        auto* node = tree->search(pos.x(), pos.y(), pos.z());
-        return node && tree->isNodeOccupied(node);
-    }
 
     // ── Dünya sınırları içinde mi? ─────────────────────────────────────
     bool inBounds(const Eigen::Vector3d& pos) const {

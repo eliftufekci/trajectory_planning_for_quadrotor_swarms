@@ -1,5 +1,4 @@
 #pragma once
-#include <eigen3/Eigen/src/Core/Matrix.h>
 #include <map>
 #include <tuple>
 #include <vector>
@@ -8,14 +7,13 @@
 #include "Environment.h"
 #include "FCLCollisionChecker.h"
 #include "Graph.h"
-#include "FCLCollisionChecker.h"
 
 
 class RoadMapGenerator {
 public:
     const Environment& env;
     double grid_step;
-    FCLCollisionChecker collisionChecker;
+    const FCLCollisionChecker& collisionChecker;
 
     RoadMapGenerator(const Environment& env,
                      const FCLCollisionChecker& collisionChecker,
@@ -80,7 +78,7 @@ private:
             y = std::min(y, wmax.y());
             z = std::min(z, wmax.z());
             Eigen::Vector3d point(x, y, z);
-            if (env.isOccupied(point)) continue;
+            if (collisionChecker.isOccupied(point)) continue;
 
             auto key = std::make_tuple(ix, iy, iz);
             if (indexMap.count(key)) continue;
