@@ -6,20 +6,21 @@
 #include <limits>
 #include <Eigen/Dense>
 #include "Environment.h"
+#include "FCLCollisionChecker.h"
 #include "Graph.h"
-#include "RobotModel.h"
+#include "FCLCollisionChecker.h"
 
 
 class RoadMapGenerator {
 public:
     const Environment& env;
-    RobotModel robot;
     double grid_step;
+    FCLCollisionChecker collisionChecker;
 
     RoadMapGenerator(const Environment& env,
-                     const RobotModel& robot,
+                     const FCLCollisionChecker& collisionChecker,
                      double grid_step = 0.5)
-        : env(env), robot(robot), grid_step(grid_step) {}
+        : env(env), collisionChecker(collisionChecker), grid_step(grid_step) {}
 
     Graph createRoadMap() {
         Graph graph;
@@ -57,8 +58,7 @@ private:
     }
 
     // ── 1: engel olmayan noktaları vertex olarak ekle ─────────
-    void addFreeVertices(Graph& graph,
-                        std::map<std::tuple<int,int,int>, int>& indexMap)
+    void addFreeVertices(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap)
     {
         const auto& wmin = env.world_min;
         const auto& wmax = env.world_max;
@@ -91,8 +91,7 @@ private:
     }
 
     // ── 2: her vertex için 6 komşuya edge ekle ────────────────
-    void addEdges(Graph& graph,
-                  std::map<std::tuple<int,int,int>, int>& indexMap)
+    void addEdges(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap)
     {
         // 6 yönlü komşuluk (±x, ±y, ±z)
         const std::vector<Eigen::Vector3d> directions = {
@@ -116,7 +115,7 @@ private:
                 // Çifte kenar eklemeyi önle (id1 < id2)
                 if (id1 >= id2) continue;
 
-                if (env.isEdgeFree(pos, neighbor, robot.radius, grid_step)) {
+                if (collisionChecker.isEdgeFree(pos, neighbor)) {
                     graph.addEdge(id1, id2);
                 }
             }
@@ -124,8 +123,7 @@ private:
     }
 
     // ── 3: Agent start/goal'larını en yakın vertex'e bağla ───────────
-    void connectAgents(Graph& graph,
-                       std::map<std::tuple<int,int,int>, int>& indexMap)
+    void connectAgents(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap)
     {
         for (const auto& agent : env.agents) {
             connectPoint(agent.start, graph, indexMap);
@@ -134,9 +132,9 @@ private:
     }
 
     // Nokta indexMap'te yoksa vertex ekle + en yakın vertex'e bağla
-    void connectPoint(const Eigen::Vector3d& point,
-                    Graph& graph,
-                    std::map<std::tuple<int,int,int>, int>& indexMap){
+    void connectPoint(  const Eigen::Vector3d& point,
+                        Graph& graph,
+                        std::map<std::tuple<int,int,int>, int>& indexMap){
 
         // Zaten birebir grid noktasıysa ek işlem yok
         auto key = toKey(point);
@@ -150,8 +148,8 @@ private:
         double search_radius = grid_step * 1.5;
         for (const auto& [k, vid] : indexMap) {
             double dist = (toPos(k) - point).norm();
-            if(dist <= search_radius && env.isEdgeFree(point, toPos(k), robot.radius))
-                graph.addEdge(id, vid)
+            if(dist <= search_radius && collisionChecker.isEdgeFree(point, toPos(k)))
+                graph.addEdge(id, vid);
         }
 
     }

@@ -1,7 +1,7 @@
 git clone -b roadmap_generation https://github.com/eliftufekci/trajectory_planning_for_quadrotor_swarms.git
 
 sudo apt-get update
-sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev libfcl-dev
+sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev libcdd-dev
 
 
 mkdir  /content/trajectory_planning_for_quadrotor_swarms/build

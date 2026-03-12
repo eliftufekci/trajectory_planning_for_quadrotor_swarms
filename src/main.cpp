@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include "Environment.h"
+#include "FCLCollisionChecker.h"
 #include "Graph.h"
 #include "RobotModel.h"
 #include "RoadMapGenerator.h"
@@ -45,7 +46,8 @@ int main(int argc, char* argv[]) {
     Environment env = Environment::loadFromYAML(yaml_path);
     RobotModel robot;
     double step_size = 1.0;
-    RoadMapGenerator roadMapGenerator(env, robot, step_size);
+    FCLCollisionChecker fclCollisionChecker(env, robot);
+    RoadMapGenerator roadMapGenerator(env, fclCollisionChecker, step_size);
     Graph environment_graph = roadMapGenerator.createRoadMap();
     environment_graph.saveToCSV("vertices.csv", "edges.csv");
 

@@ -31,12 +31,11 @@ add_executable(env_test
     src/main.cpp
 )
 
-target_link_libraries(env_test
+target_link_libraries(env_test PRIVATE
     ${OCTOMAP_LIBRARIES}
     yaml-cpp
+    fcl
 )
-
-target_link_libraries(your_target PRIVATE fcl)
 
 # ── Build sonrası bilgi ──────────────────────────────────────────────
 message(STATUS "Eigen3   : ${EIGEN3_INCLUDE_DIRS}")

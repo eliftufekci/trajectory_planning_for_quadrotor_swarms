@@ -2,76 +2,76 @@
 #include "Environment.h"
 #include "RobotModel.h"
 #include <Eigen/Dense>
-#include <Eigen/Dense>
-#include <fcl/fcl.h>
+#include <fcl/narrowphase/continuous_collision.h>
+#include <fcl/narrowphase/collision_object.h>
+#include <fcl/geometry/shape/box.h>
+#include <fcl/geometry/shape/sphere.h>
 #include <vector>
+#include <memory>
 
-class FCLCollisionChecker{
+class FCLCollisionChecker {
 public:
-
-    std::vector<std::shared_ptr<fcl::CollisionObjectd>> obsCollisionObjects;
-    std::vector<std::shared_ptr<fcl::Boxd>> obsBoxObjects;
-
-    std::vector<std::shared_ptr<fcl::CollisionObjectd>> agentCollisionObjects;
-    std::vector<std::shared_ptr<fcl::Sphered>> agentSphereObjects;
-    
     const Environment& env;
     RobotModel robot;
 
-    FCLCollisionChecker(const Environment& env, RobotModel robot){
+    std::vector<std::shared_ptr<fcl::Boxd>> obsBoxObjects;
+    std::vector<std::shared_ptr<fcl::CollisionObjectd>> obsCollisionObjects;
+
+    // Sphere geometry bir kez oluşturulur, her isEdgeFree çağrısında paylaşılır
+    std::shared_ptr<fcl::Sphered> agent_sphere_;
+
+    FCLCollisionChecker(const Environment& env, const RobotModel& robot)
+        : env(env), robot(robot)
+    {
+        agent_sphere_ = std::make_shared<fcl::Sphered>(robot.radius);
         createObsObjects(env.obstacles);
-        createAgentObjects(env.agents);
-
-        env(env);
-        robot(robot);
     }
 
-    void createObsObjects(const std::vector<AABB> obstacles){
-        for(const auto& obstacle : obstacles){
-            const auto& min = obstacle.min;
-            const auto& max = obstacle.max;
+    void createObsObjects(const std::vector<AABB>& obstacles) {
+        for (const auto& obstacle : obstacles) {
+            Eigen::Vector3d size = obstacle.max - obstacle.min;
+            Eigen::Vector3d center = (obstacle.min + obstacle.max) * 0.5;
 
-            // full side lengths
-            double fsl_x = (max - min).x();
-            double fsl_y = (max - min).y();
-            double fsl_z = (max - min).z();
+            auto box = std::make_shared<fcl::Boxd>(size.x(), size.y(), size.z());
 
-            auto center = (min + max) * 0.5;
+            fcl::Transform3d tf = fcl::Transform3d::Identity();
+            tf.translation() = center;
 
-            fcl::Boxd obs_box(fsl_x, fsl_y, fsl_z);
-            
-            fcl::Transform3d tf_obs = fcl::Transform3d::Identity();
-            tf_obs.translation() << center;
+            auto obj = std::make_shared<fcl::CollisionObjectd>(box, tf);
 
-            fcl::CollisionObjectd obs_collision_obj(obs_box, tf_obs);
-
-            obsBoxObjects.push_back(obs_box);
-            obsCollisionObjects.push_back(obs_collision_obj);
-
+            obsBoxObjects.push_back(box);
+            obsCollisionObjects.push_back(obj);
         }
     }
 
-    void createAgentObjects(const std::vector<Agent> agents){
-        for(const auto& agent : agents){
-            const auto& start = agent.start;
-            const auto& robot_radius = robot.radius;
+    bool isEdgeFree(const Eigen::Vector3d& a, const Eigen::Vector3d& b) const {
+        // Robot başlangıç transform'u
+        fcl::Transform3d tf_start = fcl::Transform3d::Identity();
+        tf_start.translation() = a;
 
-            fcl::Sphered agent_sphere(robot_radius);
-            
-            fcl::Transform3d tf_agent = fcl::Transform3d::Identity();
-            tf_agent.translation() << start;
+        // Robot bitiş transform'u
+        fcl::Transform3d tf_end = fcl::Transform3d::Identity();
+        tf_end.translation() = b;
 
-            fcl::CollisionObjectd agent_collision_obj(agent_sphere, tf_agent);
+        // Robot CollisionObject — başlangıç pozisyonunda
+        fcl::CollisionObjectd sphere_obj(agent_sphere_, tf_start);
 
-            agentSphereObjects.push_back(agent_sphere);
-            agentCollisionObjects.push_back(agent_collision_obj);
+        // Obstacle bitiş transform'u — sabit, kendi tf'i ile aynı
+        for (const auto& obs_obj : obsCollisionObjects) {
+            fcl::ContinuousCollisionRequestd request;
+            fcl::ContinuousCollisionResultd result;
+
+            fcl::continuousCollide(
+                &sphere_obj, tf_end,                    // robot: start→end hareket ediyor
+                obs_obj.get(), obs_obj->getTransform(), // obstacle: sabit, başlangıç = bitiş
+                request, result
+            );
+
+            if (result.is_collide) {
+                return false;
+            }
         }
+
+        return true;
     }
-
-    // bool checkCollision(const fcl::CollisionObjectd obj1, const fcl::CollisionObjectd obj2){
-    //     fcl::CollisionRequestd request;
-    //     fcl::CollisionResultd result;
-
-    //     return fcl::collide(&obj1, &obj2, request, result);
-    // }
 };

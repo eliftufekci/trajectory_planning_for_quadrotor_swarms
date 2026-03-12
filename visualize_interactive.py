@@ -53,8 +53,7 @@ def aabb_vertices(mn, mx):
 
 
 # ─────────────────────────────────────────────
-#  ConvexHull'dan Mesh3d trace — arkadaşının
-#  yöntemiyle aynı, temiz mesh garantili
+#  ConvexHull'dan Mesh3d trace
 # ─────────────────────────────────────────────
 def mesh_from_hull(mn, mx, color, opacity, name, showlegend=True):
     verts = aabb_vertices(mn, mx)
@@ -80,7 +79,7 @@ def mesh_from_hull(mn, mx, color, opacity, name, showlegend=True):
 # ─────────────────────────────────────────────
 #  Wireframe (12 kenar)
 # ─────────────────────────────────────────────
-def wireframe_trace(mn, mx, color="white", width=1.5):
+def wireframe_trace(mn, mx, color="gray", width=1.5):
     x0,y0,z0 = mn; x1,y1,z1 = mx
     segs = [
         [(x0,y0,z0),(x1,y0,z0)], [(x1,y0,z0),(x1,y1,z0)],
@@ -115,8 +114,29 @@ OBS_COLORS   = [
     "rgba(26,188,156,0.7)",
 ]
 AGENT_COLORS = ["#2ecc71", "#3498db", "#f1c40f", "#e91e63"]
-BG_COLOR     = "#1a1a2e"
-GRID_COLOR   = "#2a2a4a"
+
+BG_COLOR   = "white"
+GRID_COLOR = "rgba(200,200,200,0.3)"
+
+
+# ─────────────────────────────────────────────
+#  Eksen ayarları — grid çizgisi yok, tick yok
+# ─────────────────────────────────────────────
+def axis_style(title, axis_range):
+    return dict(
+        title=dict(
+            text=title,
+            font=dict(color="black")
+        ),
+        range=axis_range,
+        showgrid=False,        # ızgara çizgileri kaldırıldı
+        showticklabels=False,  # sayısal aralıklandırma kaldırıldı
+        zeroline=False,
+        showspikes=False,
+        backgroundcolor=BG_COLOR,
+        gridcolor=GRID_COLOR,
+        tickfont=dict(color="black")
+    )
 
 
 # ─────────────────────────────────────────────
@@ -128,7 +148,7 @@ def build_figure(env, vertices, edges):
     wmax = env["world_max"]
 
     # ── Dünya kutusu wireframe ────────────────────────────────────────
-    fig.add_trace(wireframe_trace(wmin, wmax, color="rgba(100,120,200,0.5)", width=1.5))
+    fig.add_trace(wireframe_trace(wmin, wmax, color="rgba(80,80,80,0.6)", width=1.5))
 
     # ── Engeller ─────────────────────────────────────────────────────
     for i, obs in env["obstacles"].items():
@@ -139,19 +159,18 @@ def build_figure(env, vertices, edges):
             name=f"Engel {i+1}",
             showlegend=True,
         ))
-        fig.add_trace(wireframe_trace(obs["min"], obs["max"], color="rgba(255,255,255,0.5)"))
-        # Etiket
+        fig.add_trace(wireframe_trace(obs["min"], obs["max"], color="rgba(50,50,50,0.6)"))
         cx = (obs["min"][0] + obs["max"][0]) / 2
         cy = (obs["min"][1] + obs["max"][1]) / 2
         cz =  obs["max"][2] + 0.2
         fig.add_trace(go.Scatter3d(
             x=[cx], y=[cy], z=[cz],
             mode="text", text=[f"Obs {i+1}"],
-            textfont=dict(color="white", size=11),
+            textfont=dict(color="black", size=11),
             showlegend=False, hoverinfo="skip",
         ))
 
-    # ── Graph kenarları ───────────────────────────────────────────────
+    # ── Graph kenarları — siyah ───────────────────────────────────────
     if edges and vertices:
         ex, ey, ez = [], [], []
         for (fr, to, _) in edges:
@@ -163,7 +182,7 @@ def build_figure(env, vertices, edges):
         fig.add_trace(go.Scatter3d(
             x=ex, y=ey, z=ez,
             mode="lines",
-            line=dict(color="rgba(180,180,220,0.4)", width=1.5),
+            line=dict(color="black", width=1.5),
             name="Graph Edges",
             hoverinfo="skip",
         ))
@@ -175,7 +194,7 @@ def build_figure(env, vertices, edges):
         fig.add_trace(go.Scatter3d(
             x=vx[:,0], y=vx[:,1], z=vx[:,2],
             mode="markers",
-            marker=dict(size=3, color="white", opacity=0.85),
+            marker=dict(size=3, color="black", opacity=0.85),
             name="Waypoints",
             text=[f"v{i}" for i in ids],
             hovertemplate="<b>%{text}</b><br>x:%{x:.2f} y:%{y:.2f} z:%{z:.2f}<extra></extra>",
@@ -229,7 +248,7 @@ def build_figure(env, vertices, edges):
     fig.update_layout(
         title=dict(
             text="3D Environment — İnteraktif Görselleştirme",
-            font=dict(color="white", size=16),
+            font=dict(color="black", size=16),
             x=0.5,
         ),
         paper_bgcolor=BG_COLOR,
@@ -238,29 +257,17 @@ def build_figure(env, vertices, edges):
         hovermode="closest",
         legend=dict(
             x=1.02, y=1,
-            bgcolor="rgba(30,30,60,0.85)",
-            font=dict(color="white", size=10),
-            bordercolor="rgba(100,100,180,0.4)",
+            bgcolor="rgba(240,240,240,0.9)",
+            font=dict(color="black", size=10),
+            bordercolor="rgba(100,100,100,0.4)",
             borderwidth=1,
         ),
         scene=dict(
             bgcolor=BG_COLOR,
             aspectmode="data",
-            xaxis=dict(
-                title="X (m)", gridcolor=GRID_COLOR,
-                range=[wmin[0]-margin, wmax[0]+margin],
-                tickfont=dict(color="white"),
-            ),
-            yaxis=dict(
-                title="Y (m)", gridcolor=GRID_COLOR,
-                range=[wmin[1]-margin, wmax[1]+margin],
-                tickfont=dict(color="white"),
-            ),
-            zaxis=dict(
-                title="Z (m)", gridcolor=GRID_COLOR,
-                range=[wmin[2]-margin, wmax[2]+margin],
-                tickfont=dict(color="white"),
-            ),
+            xaxis=axis_style("X (m)", [wmin[0]-margin, wmax[0]+margin]),
+            yaxis=axis_style("Y (m)", [wmin[1]-margin, wmax[1]+margin]),
+            zaxis=axis_style("Z (m)", [wmin[2]-margin, wmax[2]+margin]),
             camera=dict(eye=dict(x=1.5, y=-1.8, z=1.2)),
         ),
     )
