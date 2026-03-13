@@ -3,6 +3,7 @@
 #include <tuple>
 #include <vector>
 #include <limits>
+#include <algorithm>
 #include <Eigen/Dense>
 #include "Environment.h"
 #include "FCLCollisionChecker.h"
@@ -129,7 +130,7 @@ private:
         }
     }
 
-    // Nokta indexMap'te yoksa vertex ekle + en yakın vertex'e bağla
+    // Nokta indexMap'te yoksa vertex ekle + en yakın 6 vertex'e bağla
     void connectPoint(  const Eigen::Vector3d& point,
                         Graph& graph,
                         std::map<std::tuple<int,int,int>, int>& indexMap){
@@ -140,16 +141,29 @@ private:
             if ((toPos(key) - point).norm() < 1e-6) return;
         }
 
-        // Vertex ekle (indexMap'e YAZMA — grid'i bozma)
         
         int id = graph.addVertex(point);
+
+        std::vector<std::pair<double, int>> candidates;
 
         double search_radius = grid_step * 1.5;
         for (const auto& [k, vid] : indexMap) {
             double dist = (toPos(k) - point).norm();
             if(dist <= search_radius && collisionChecker.isEdgeFree(point, toPos(k)))
-                graph.addEdge(id, vid);
+                candidates.push_back({dist, vid});
         }
 
+        std::sort(candidates.begin(), candidates.end());
+
+        int connected = 0;
+        for (const auto& [dist, vid] : candidates) {
+            if (connected >= 6) break;  // Makale: "up to six neighbors"
+            graph.addEdge(id, vid);
+            connected++;
+        }
+
+        if (connected == 0)
+            std::cerr << "Uyari: " << point.transpose()
+                      << " noktasi roadmap'e baglanamiyor!\n"; 
     }
 };
