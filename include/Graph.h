@@ -99,4 +99,8 @@ public:
         }
         std::cout << "Kaydedildi: " << vertex_file << ", " << edge_file << "\n";
     }
+
+    const std::vector<Vertex>& getVertices() const{
+        return vertices;
+    }
 };
