@@ -15,7 +15,7 @@ struct RobotModel {
     // ── Varsayılan: Crazyflie nano-quadrotor benzeri ──────────────────
     RobotModel()
         : radius(0.15)
-        , rx(0.15), ry(0.15), rz(0.5) {}
+        , rx(0.15), ry(0.15), rz(0.3) {}
 
     RobotModel(double radius, double rx, double ry, double rz)
         : radius(radius), rx(rx), ry(ry), rz(rz) {}

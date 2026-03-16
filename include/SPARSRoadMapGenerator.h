@@ -23,10 +23,18 @@ public:
     const FCLCollisionChecker& collisionChecker;
     double sparseDeltaFraction;
 
+    // sparseDeltaFraction : SPARS δ parametresi (space diagonal'ına oranı).
+    //                       OMPL bunu sparseDelta = fraction * space_diagonal olarak kullanır.
+    //                       connectRadius: start/goal bağlama için kullanılan yarıçap.
+    //                       Negatif bırakılırsa → sparseDelta değerine otomatik eşitlenir.
     SPARSRoadMapGenerator(const Environment& env,
                           const FCLCollisionChecker& collisionChecker,
-                          double sparseDeltaFraction = 0.05)
-        : env(env), collisionChecker(collisionChecker), sparseDeltaFraction(sparseDeltaFraction) {}
+                          double sparseDeltaFraction = 0.05,
+                          double connectRadius = -1.0)
+        : env(env)
+        , collisionChecker(collisionChecker)
+        , sparseDeltaFraction(sparseDeltaFraction)
+        , connectRadius_(connectRadius) {}
 
     Graph createRoadMap() {
         Graph roadMap;
@@ -45,7 +53,11 @@ public:
         });
         si->setup();
 
-        // dummy start and goal
+        // SPARS'a start/goal vermek sadece arama yolunu etkiler;
+        // roadmap oluşumu bundan bağımsızdır. Ancak birden fazla start/goal
+        // verilmesi, coverage'ı artırır.
+        // Agent yoksa ortamın zıt iki köşesini kullan — tek nokta verilmesi
+        // SPARS'ın çok seyrek roadmap üretmesine yol açabilir.
         ob::ScopedState<ob::RealVectorStateSpace> startState(space);
         ob::ScopedState<ob::RealVectorStateSpace> goalState(space);
 
@@ -57,10 +69,13 @@ public:
             goalState[1]  = env.agents[0].goal.y();
             goalState[2]  = env.agents[0].goal.z();
         } else {
-            Eigen::Vector3d c = (env.world_min + env.world_max) * 0.5;
-            startState[0] = goalState[0] = c.x();
-            startState[1] = goalState[1] = c.y();
-            startState[2] = goalState[2] = c.z();
+            // Zıt köşeler → SPARS tüm alanı tarama şansı bulur
+            startState[0] = env.world_min.x();
+            startState[1] = env.world_min.y();
+            startState[2] = env.world_min.z();
+            goalState[0]  = env.world_max.x();
+            goalState[1]  = env.world_max.y();
+            goalState[2]  = env.world_max.z();
         }
 
         auto pdef = std::make_shared<ob::ProblemDefinition>(si);
@@ -103,11 +118,20 @@ public:
     }
 
 private:
-    double computeSearchRadius() {
+    double connectRadius_;   // start/goal bağlama yarıçapı
+
+    // SPARS'ın kendi δ'sıyla tutarlı bir search radius hesapla.
+    // OMPL içinde: sparseDelta = sparseDeltaFraction * space_diagonal
+    // connectRadius negatifse aynı formülü kullan → tutarlılık sağlanır.
+    double computeSearchRadius() const {
         double dx = env.world_max.x() - env.world_min.x();
         double dy = env.world_max.y() - env.world_min.y();
         double dz = env.world_max.z() - env.world_min.z();
-        return std::sqrt(dx*dx + dy*dy + dz*dz) * sparseDeltaFraction;
+        double sparseDelta = std::sqrt(dx*dx + dy*dy + dz*dz) * sparseDeltaFraction;
+
+        if (connectRadius_ > 0.0)
+            return connectRadius_;   // kullanıcı tanımlı
+        return sparseDelta;          // SPARS δ ile aynı → dispersion'a uyumlu
     }
 
     void addVertices(Graph& graph,

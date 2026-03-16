@@ -143,11 +143,14 @@ private:
 
         
         int id = graph.addVertex(point);
+        indexMap[key] = id;
 
         std::vector<std::pair<double, int>> candidates;
 
         double search_radius = grid_step * 1.5;
         for (const auto& [k, vid] : indexMap) {
+            if (vid == id) continue;
+
             double dist = (toPos(k) - point).norm();
             if(dist <= search_radius && collisionChecker.isEdgeFree(point, toPos(k)))
                 candidates.push_back({dist, vid});
