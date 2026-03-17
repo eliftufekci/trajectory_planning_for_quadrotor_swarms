@@ -1,6 +1,4 @@
 #pragma once
-#include <Eigen/src/Core/Matrix.h>
-#include <eigen3/Eigen/src/Core/Matrix.h>
 #include <map>
 #include <vector>
 #include <tuple>
@@ -13,6 +11,10 @@
 struct ConflictAnnotation{
     const Graph& graph;
     const RobotModel& robotModel;
+
+    std::map<int, std::set<int>> conVV;
+    std::map<int, std::set<int>> conEV;
+    std::map<int, std::set<int>> conEE;
     
     ConflictAnnotation(const Graph& graph, const RobotModel& robotModel) 
             : graph(graph), robotModel(robotModel) {}
@@ -76,8 +78,13 @@ inline std::tuple<Eigen::Vector3d, Eigen::Vector3d> segment_to_segment(const Eig
     return {point1, point2};
 }
 
+// Elipsoid uzayını birim küre uzayına dönüştürür.
+inline Eigen::Vector3d scale_pos(const Eigen::Vector3d& pos, const RobotModel& model) {
+    return Eigen::Vector3d(pos.x() / model.rx, pos.y() / model.ry, pos.z() / model.rz);
+}
+
 // map<vertex_id, set<vertex_id>>
-std::map<int, std::set<int>> findCovVV(Graph& graph, const RobotModel& robotModel){
+std::map<int, std::set<int>> findConVV(Graph& graph, const RobotModel& robotModel){
     std::map<int, std::set<int>> conVV;
 
     for(int i = 0; i < graph.vertices.size(); i++){
@@ -100,17 +107,23 @@ std::map<int, std::set<int>> findCovVV(Graph& graph, const RobotModel& robotMode
 std::map<int, std::set<int>> findConEV(Graph& graph, const RobotModel& robotModel){
     std::map<int, std::set<int>> conEV;
 
-    for(int i = 0; i < graph.edges.size(); i++){
-        for(int j = 0; j < graph.vertices.size(); j++){
-            const auto& e = graph.edges[i];
-            const auto& v = graph.vertices[j];
+    for (const auto& e : graph.getEdges()) {
+        for (const auto& v : graph.getVertices()) {
+            // Kenarın kendi başlangıç/bitiş noktalarıyla çakışmasını kontrol etme
+            if (e.from == v.id || e.to == v.id) continue;
 
-            auto point = segment_to_point(e.from.pos, e.to.pos, v.pos);
+            // Elipsoid çarpışma kontrolü için uzayı ölçekle
+            Eigen::Vector3d e_from_scaled = scale_pos(graph.vertices[e.from].pos, robotModel);
+            Eigen::Vector3d e_to_scaled   = scale_pos(graph.vertices[e.to].pos, robotModel);
+            Eigen::Vector3d v_pos_scaled  = scale_pos(v.pos, robotModel);
 
-            if(robotModel.collides(v.pos, point)){
+            // Ölçeklenmiş uzayda en yakın noktayı bul
+            auto point_on_segment_scaled = segment_to_point(e_from_scaled, e_to_scaled, v_pos_scaled);
+
+            // Ölçeklenmiş uzayda mesafe kontrolü (birim küre olduğu için < 1)
+            if ((v_pos_scaled - point_on_segment_scaled).squaredNorm() < 1.0) {
                 conEV[e.id].insert(v.id);
             }
-
         }
     }
     return conEV;
@@ -121,13 +134,21 @@ std::map<int, std::set<int>> findConEV(Graph& graph, const RobotModel& robotMode
 std::map<int, std::set<int>> findConEE(Graph& graph, const RobotModel& robotModel){
     std::map<int, std::set<int>> conEE;
 
-    for(int i = 0; i < graph.edges.size(); i++){
-        for(int j = i + 1; j < graph.edges.size(); j++){
+    for (size_t i = 0; i < graph.edges.size(); ++i) {
+        for (size_t j = i + 1; j < graph.edges.size(); ++j) {
             const auto& e = graph.edges[i];
             const auto& f = graph.edges[j];
 
-            auto [point1, point2] = segment_to_segment(e.from.pos, e.to.pos, f.from.pos, f.to.pos);
-            if(robotModel.collides(point1, point2)){
+            // Elipsoid çarpışma kontrolü için uzayı ölçekle
+            Eigen::Vector3d e_from_scaled = scale_pos(graph.vertices[e.from].pos, robotModel);
+            Eigen::Vector3d e_to_scaled   = scale_pos(graph.vertices[e.to].pos, robotModel);
+            Eigen::Vector3d f_from_scaled = scale_pos(graph.vertices[f.from].pos, robotModel);
+            Eigen::Vector3d f_to_scaled   = scale_pos(graph.vertices[f.to].pos, robotModel);
+
+            // Ölçeklenmiş uzayda en yakın noktaları bul
+            auto [p1_scaled, p2_scaled] = segment_to_segment(e_from_scaled, e_to_scaled, f_from_scaled, f_to_scaled);
+            // Ölçeklenmiş uzayda mesafe kontrolü (birim küre olduğu için < 1)
+            if ((p1_scaled - p2_scaled).squaredNorm() < 1.0) {
                 conEE[e.id].insert(f.id);
                 conEE[f.id].insert(e.id);
             }
@@ -135,4 +156,13 @@ std::map<int, std::set<int>> findConEE(Graph& graph, const RobotModel& robotMode
         }
     }
     return conEE;
+}
+
+ConflictAnnotation annotate(Graph& graph, RobotModel& robotModel){
+    ConflictAnnotation conflictAnnotation(graph, robotModel);
+    conflictAnnotation.conVV = findConVV(graph, robotModel);
+    conflictAnnotation.conEV = findConEV(graph, robotModel);
+    conflictAnnotation.conEE = findConEE(graph, robotModel);
+
+    return conflictAnnotation;
 }
