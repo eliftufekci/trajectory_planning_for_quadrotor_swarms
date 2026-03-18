@@ -1,32 +1,19 @@
 #pragma once
-#include <map>
 #include <vector>
 #include <tuple>
-#include <set>
 #include <Eigen/Dense>
 #include <algorithm>
-#include "Graph.h"
-#include "RobotModel.h"
+#include "ConflictAnnotation.hpp"
 
-class SweptConflictAnnotation{
+class SweptConflictAnnotation : public ConflictAnnotation {
 public:
-    const Graph& graph;
-    const RobotModel& robotModel;
-
-    std::map<int, std::set<int>> conVV;
-    std::map<int, std::set<int>> conEV;
-    std::map<int, std::set<int>> conEE;
-    
     SweptConflictAnnotation(const Graph& graph, const RobotModel& robotModel) 
-            : graph(graph), robotModel(robotModel) {}
+            : ConflictAnnotation(graph, robotModel) {}
 
-    SweptConflictAnnotation annotate(){
-        SweptConflictAnnotation sweptConflictAnnotation(graph, robotModel);
-        sweptConflictAnnotation.conVV = findConVV();
-        sweptConflictAnnotation.conEV = findConEV();
-        sweptConflictAnnotation.conEE = findConEE();
-
-        return sweptConflictAnnotation;
+    void annotate() override {
+        conVV = findConVV();
+        conEV = findConEV();
+        conEE = findConEE();
     }
 
 

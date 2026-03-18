@@ -3,9 +3,9 @@
 #include <vector>
 #include <algorithm>
 #include <Eigen/Dense>
-#include "Environment.h"
-#include "FCLCollisionChecker.h"
-#include "Graph.h"
+#include "Environment.hpp"
+#include "FCLCollisionChecker.hpp"
+#include "Graph.hpp"
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 #include <ompl/geometric/planners/prm/SPARS.h>
@@ -17,10 +17,8 @@
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
-class SPARSRoadMapGenerator {
+class SPARSRoadMapGenerator : public RoadMapGenerator{
 public:
-    const Environment& env;
-    const FCLCollisionChecker& collisionChecker;
     double sparseDeltaFraction;
 
     // sparseDeltaFraction : SPARS δ parametresi (space diagonal'ına oranı).
@@ -31,12 +29,11 @@ public:
                           const FCLCollisionChecker& collisionChecker,
                           double sparseDeltaFraction = 0.05,
                           double connectRadius = -1.0)
-        : env(env)
-        , collisionChecker(collisionChecker)
+        : RoadMapGenerator(env, collisionChecker)
         , sparseDeltaFraction(sparseDeltaFraction)
         , connectRadius_(connectRadius) {}
 
-    Graph createRoadMap() {
+    Graph createRoadMap() override{
         Graph roadMap;
         std::map<unsigned int, int> vertexMap;
 
@@ -163,14 +160,15 @@ private:
 
     void connectAgents(Graph& graph) {
         for (const auto& agent : env.agents) {
-            connectPoint(agent.start, graph);
-            connectPoint(agent.goal,  graph);
+            auto s = connectPoint(agent.start, graph, indexMap);
+            auto g = connectPoint(agent.goal,  graph, indexMap);
+            start_goal_vertices.insert({s, g});
         }
     }
 
     // Makale Section IV: "connect to up to six neighbors within a search radius
     //                     if the edge could be traversed without collision"
-    void connectPoint(const Eigen::Vector3d& point, Graph& graph) {
+    int connectPoint(const Eigen::Vector3d& point, Graph& graph) {
         int id = graph.addVertex(point);
         double search_radius = computeSearchRadius();
 
@@ -195,5 +193,7 @@ private:
             std::cerr << "Uyari: [" << point.transpose()
                       << "] noktasi roadmap'e baglanamiyor! "
                       << "Search radius: " << search_radius << "\n";
+
+        return id;
     }
 };

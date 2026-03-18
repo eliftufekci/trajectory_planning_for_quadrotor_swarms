@@ -1,31 +1,18 @@
 #pragma once
-#include <map>
-#include <set>
-#include "Graph.h"
-#include "RobotModel.h"
+#include "ConflictAnnotation.hpp"
 #include <fcl/narrowphase/continuous_collision.h>
 #include <fcl/narrowphase/collision_object.h>
 #include <fcl/geometry/shape/ellipsoid.h>
 
-class FCLConflictAnnotation{
+class FCLConflictAnnotation : public ConflictAnnotation {
 public:
-    const Graph& graph;
-    const RobotModel& robotModel;
-
-    std::map<int, std::set<int>> conVV;
-    std::map<int, std::set<int>> conEV;
-    std::map<int, std::set<int>> conEE;
-
     FCLConflictAnnotation(const Graph& graph, const RobotModel& robotModel) 
-            : graph(graph), robotModel(robotModel) {}
+            : ConflictAnnotation(graph, robotModel) {}
 
-    FCLConflictAnnotation annotate(){
-        FCLConflictAnnotation fclConflictAnnotation(graph, robotModel);
-        fclConflictAnnotation.conVV = findConVV();
-        fclConflictAnnotation.conEV = findConEV();
-        fclConflictAnnotation.conEE = findConEE();
-
-        return fclConflictAnnotation;
+    void annotate() override {
+        conVV = findConVV();
+        conEV = findConEV();
+        conEE = findConEE();
     }
 
 

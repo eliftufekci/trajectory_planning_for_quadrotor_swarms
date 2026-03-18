@@ -1,6 +1,6 @@
 #pragma once
-#include "Environment.h"
-#include "RobotModel.h"
+#include "Environment.hpp"
+#include "RobotModel.hpp"
 #include <Eigen/Dense>
 #include <fcl/narrowphase/collision.h>
 #include <fcl/narrowphase/continuous_collision.h>

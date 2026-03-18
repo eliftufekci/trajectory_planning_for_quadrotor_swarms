@@ -5,23 +5,22 @@
 #include <limits>
 #include <algorithm>
 #include <Eigen/Dense>
-#include "Environment.h"
-#include "FCLCollisionChecker.h"
-#include "Graph.h"
+#include "Environment.hpp"
+#include "FCLCollisionChecker.hpp"
+#include "Graph.hpp"
 
 
-class GridRoadMapGenerator {
+class GridRoadMapGenerator : public RoadMapGenerator{
 public:
-    const Environment& env;
     double grid_step;
-    const FCLCollisionChecker& collisionChecker;
 
     GridRoadMapGenerator(const Environment& env,
                      const FCLCollisionChecker& collisionChecker,
                      double grid_step = 0.5)
-        : env(env), collisionChecker(collisionChecker), grid_step(grid_step) {}
+        : RoadMapGenerator(env, collisionChecker)
+        , grid_step(grid_step) {}
 
-    Graph createRoadMap() {
+    Graph createRoadMap() override {
         Graph graph;
         std::map<std::tuple<int,int,int>, int> indexMap;
 
@@ -125,20 +124,21 @@ private:
     void connectAgents(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap)
     {
         for (const auto& agent : env.agents) {
-            connectPoint(agent.start, graph, indexMap);
-            connectPoint(agent.goal,  graph, indexMap);
+            auto s = connectPoint(agent.start, graph, indexMap);
+            auto g = connectPoint(agent.goal,  graph, indexMap);
+            start_goal_vertices.insert({s, g});
         }
     }
 
     // Nokta indexMap'te yoksa vertex ekle + en yakın 6 vertex'e bağla
-    void connectPoint(  const Eigen::Vector3d& point,
+    int connectPoint(  const Eigen::Vector3d& point,
                         Graph& graph,
                         std::map<std::tuple<int,int,int>, int>& indexMap){
 
         // Zaten birebir grid noktasıysa ek işlem yok
         auto key = toKey(point);
         if (indexMap.count(key)) {
-            if ((toPos(key) - point).norm() < 1e-6) return;
+            if ((toPos(key) - point).norm() < 1e-6) return ;
         }
 
         
@@ -168,5 +168,7 @@ private:
         if (connected == 0)
             std::cerr << "Uyari: " << point.transpose()
                       << " noktasi roadmap'e baglanamiyor!\n"; 
+
+        return id;
     }
 };
