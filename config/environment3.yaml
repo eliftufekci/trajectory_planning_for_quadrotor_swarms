@@ -19,7 +19,7 @@ agents:
   
   # Ajan 1: Engelin üstünden (Z ekseni) aşmayı dener
   - id: 1
-    start: [2.5, 0.5, 0.2]
+    start: [1.5, 0.5, 0.2]
     goal: [2.5, 3.5, 2.8]
 
   # Ajan 2: Sağ taraftaki boşluğu kullanarak pürüzsüz bir kavis çizer

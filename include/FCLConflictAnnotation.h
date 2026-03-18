@@ -21,9 +21,9 @@ public:
 
     FCLConflictAnnotation annotate(){
         FCLConflictAnnotation fclConflictAnnotation(graph, robotModel);
-        fclConflictAnnotation.conVV = findConVV(graph, robotModel);
-        fclConflictAnnotation.conEV = findConEV(graph, robotModel);
-        fclConflictAnnotation.conEE = findConEE(graph, robotModel);
+        fclConflictAnnotation.conVV = findConVV();
+        fclConflictAnnotation.conEV = findConEV();
+        fclConflictAnnotation.conEE = findConEE();
 
         return fclConflictAnnotation;
     }
@@ -31,7 +31,7 @@ public:
 
 private:
     // map<vertex_id, set<vertex_id>>
-    std::map<int, std::set<int>> findConVV(Graph& graph, const RobotModel& robotModel){
+    std::map<int, std::set<int>> findConVV(){
         std::map<int, std::set<int>> conVV;
 
         for(int i = 0; i < graph.vertices.size(); i++){
@@ -51,7 +51,7 @@ private:
     }  
 
     // map<edge_id,   set<vertex_id>>
-    std::map<int, std::set<int>> findConEV(Graph& graph, const RobotModel& robotModel){
+    std::map<int, std::set<int>> findConEV(){
         std::map<int, std::set<int>> conEV;
         auto ellipsoid_geom = std::make_shared<fcl::Ellipsoidd>(robotModel.rx, robotModel.ry, robotModel.rz);
 
@@ -91,7 +91,7 @@ private:
 
 
     // map<edge_id, set<edge_id>> 
-    std::map<int, std::set<int>> findConEE(Graph& graph, const RobotModel& robotModel){
+    std::map<int, std::set<int>> findConEE(){
         std::map<int, std::set<int>> conEE;
         auto ellipsoid_geom = std::make_shared<fcl::Ellipsoidd>(robotModel.rx, robotModel.ry, robotModel.rz);
 

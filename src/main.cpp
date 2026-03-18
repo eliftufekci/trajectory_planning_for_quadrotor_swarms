@@ -6,6 +6,8 @@
 #include "RobotModel.h"
 #include "GridRoadMapGenerator.h"
 #include "SPARSRoadMapGenerator.h"
+#include "FCLConflictAnnotation.h"
+#include "SweptConflictAnnotation.h"
 
 void saveEnvironmentCSV(const Environment& env, const std::string& path) {
     std::ofstream f(path);
@@ -48,10 +50,10 @@ int main(int argc, char* argv[]) {
     RobotModel robot;
     double step_size = 0.5;
     FCLCollisionChecker fclCollisionChecker(env, robot);
-    // GridRoadMapGenerator gridRoadMapGenerator(env, fclCollisionChecker, step_size);
-    // Graph environment_graph = gridRoadMapGenerator.createRoadMap();
-    SPARSRoadMapGenerator sparsRoadMapGenerator(env, fclCollisionChecker);
-    Graph environment_graph = sparsRoadMapGenerator.createRoadMap();
+    GridRoadMapGenerator gridRoadMapGenerator(env, fclCollisionChecker, step_size);
+    Graph environment_graph = gridRoadMapGenerator.createRoadMap();
+    // SPARSRoadMapGenerator sparsRoadMapGenerator(env, fclCollisionChecker);
+    // Graph environment_graph = sparsRoadMapGenerator.createRoadMap();
 
     environment_graph.saveToCSV("vertices.csv", "edges.csv");
 
@@ -64,6 +66,17 @@ int main(int argc, char* argv[]) {
     // CSV çıktıları
     saveEnvironmentCSV(env, "environment_data.csv");
     saveOctreeCSV(env, "octree_voxels.csv");
+
+    auto fcl_conflict_annotation = FCLConflictAnnotation(environment_graph, robot).annotate();
+    auto swept_conflict_annotation = SweptConflictAnnotation(environment_graph, robot).annotate();
+
+    std::cout << "fcl conVV boyutu: " << fcl_conflict_annotation.conVV.size() << "\n";
+    std::cout << "fcl conEV boyutu: " << fcl_conflict_annotation.conEV.size() << "\n";
+    std::cout << "fcl conEE boyutu: " << fcl_conflict_annotation.conEE.size() << "\n";
+
+    std::cout << "swept conVV boyutu: " << swept_conflict_annotation.conVV.size() << "\n";
+    std::cout << "swept conEV boyutu: " << swept_conflict_annotation.conEV.size() << "\n";
+    std::cout << "swept conEE boyutu: " << swept_conflict_annotation.conEE.size() << "\n";
 
     return 0;
 }

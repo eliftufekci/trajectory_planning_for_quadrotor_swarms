@@ -22,9 +22,9 @@ public:
 
     SweptConflictAnnotation annotate(){
         SweptConflictAnnotation sweptConflictAnnotation(graph, robotModel);
-        sweptConflictAnnotation.conVV = findConVV(graph, robotModel);
-        sweptConflictAnnotation.conEV = findConEV(graph, robotModel);
-        sweptConflictAnnotation.conEE = findConEE(graph, robotModel);
+        sweptConflictAnnotation.conVV = findConVV();
+        sweptConflictAnnotation.conEV = findConEV();
+        sweptConflictAnnotation.conEE = findConEE();
 
         return sweptConflictAnnotation;
     }
@@ -95,7 +95,7 @@ private:
     }
 
     // map<vertex_id, set<vertex_id>>
-    std::map<int, std::set<int>> findConVV(Graph& graph, const RobotModel& robotModel){
+    std::map<int, std::set<int>> findConVV(){
         std::map<int, std::set<int>> conVV;
 
         for(int i = 0; i < graph.vertices.size(); i++){
@@ -115,7 +115,7 @@ private:
     }  
 
     // map<edge_id,   set<vertex_id>>
-    std::map<int, std::set<int>> findConEV(Graph& graph, const RobotModel& robotModel){
+    std::map<int, std::set<int>> findConEV(){
         std::map<int, std::set<int>> conEV;
 
         for (const auto& e : graph.getEdges()) {
@@ -144,7 +144,7 @@ private:
 
 
     // map<edge_id, set<edge_id>> 
-    std::map<int, std::set<int>> findConEE(Graph& graph, const RobotModel& robotModel){
+    std::map<int, std::set<int>> findConEE(){
         std::map<int, std::set<int>> conEE;
 
         for (size_t i = 0; i < graph.edges.size(); ++i) {
