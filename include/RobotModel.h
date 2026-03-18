@@ -26,9 +26,17 @@ struct RobotModel {
                   const Eigen::Vector3d& qj) const
     {
         Eigen::Vector3d d = qi - qj;
-        double val = (d.x()*d.x())/(rx*rx) +
-                     (d.y()*d.y())/(ry*ry) +
-                     (d.z()*d.z())/(rz*rz);
-        return val < 1.0;   // < 1 → iç içe geçmiş
+        // İki özdeş elipsoidin çarpışma kontrolü, Minkowski toplamı konsepti kullanılarak yapılır.
+        // İki elipsoid, merkezlerini birleştiren vektör (d), yarı eksenleri orijinal
+        // elipsoidin iki katı olan (2*rx, 2*ry, 2*rz) daha büyük bir elipsoidin
+        // içine düşerse çarpışır.
+        // Bu durumun matematiksel ifadesi:
+        // (d.x^2 / (4*rx^2)) + (d.y^2 / (4*ry^2)) + (d.z^2 / (4*rz^2)) < 1
+        // standart elipsiot denklemi
+        // x^2/a^2 + y^2/b^2 + z^2/c^2 = 1
+        double val = (d.x()*d.x())/(4*rx*rx) +
+                     (d.y()*d.y())/(4*ry*ry) +
+                     (d.z()*d.z())/(4*rz*rz);
+        return val < 1.0;
     }
 };
