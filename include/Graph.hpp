@@ -39,6 +39,9 @@ public:
     // Her iki yön de aynı edge id'ye işaret eder: (u,v) ve (v,u) → aynı Edge
     std::unordered_map<int, std::unordered_map<int, int>> edge_index;
 
+    std::vector<int> start_vertices;
+    std::vector<int> goal_vertices;
+
     // ── Vertex ekle, id döndür ────────────────────────────────────────
     int addVertex(const Eigen::Vector3d& pos) {
         int id = static_cast<int>(vertices.size());

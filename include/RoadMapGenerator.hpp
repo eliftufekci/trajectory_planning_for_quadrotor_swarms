@@ -9,8 +9,6 @@ public:
 
     virtual Graph createRoadMap() = 0;
 
-    std::tuple<std::vector<int>, std::vector<int>> start_goal_vertices;
-
 protected:
     RoadMapGenerator(const Environment& env,
                      const FCLCollisionChecker& collisionChecker)

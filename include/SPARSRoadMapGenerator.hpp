@@ -162,7 +162,8 @@ private:
         for (const auto& agent : env.agents) {
             auto s = connectPoint(agent.start, graph, indexMap);
             auto g = connectPoint(agent.goal,  graph, indexMap);
-            start_goal_vertices.insert({s, g});
+            graph.start_vertices.insert(s);
+            graph.goal_vertices.insert(g);
         }
     }
 

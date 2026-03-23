@@ -5,6 +5,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_BUILD_TYPE Release)
 
+# IDE'lerin (IntelliSense/clangd) kütüphaneleri tanıması için compile_commands.json üret:
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # ── 1. Paketleri Bul (Sistemde yüklü olmaları gerekir) ────────────────
 find_package(Eigen3 REQUIRED)
 find_package(octomap REQUIRED)

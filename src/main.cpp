@@ -1,13 +1,13 @@
 #include <iostream>
 #include <fstream>
-#include "Environment.h"
-#include "FCLCollisionChecker.h"
-#include "Graph.h"
-#include "RobotModel.h"
-#include "GridRoadMapGenerator.h"
-#include "SPARSRoadMapGenerator.h"
-#include "FCLConflictAnnotation.h"
-#include "SweptConflictAnnotation.h"
+#include "Environment.hpp"
+#include "FCLCollisionChecker.hpp"
+#include "Graph.hpp"
+#include "RobotModel.hpp"
+#include "GridRoadMapGenerator.hpp"
+#include "SPARSRoadMapGenerator.hpp"
+#include "FCLConflictAnnotation.hpp"
+#include "SweptConflictAnnotation.hpp"
 
 void saveEnvironmentCSV(const Environment& env, const std::string& path) {
     std::ofstream f(path);
