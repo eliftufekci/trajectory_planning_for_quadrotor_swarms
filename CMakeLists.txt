@@ -29,6 +29,7 @@ target_include_directories(env_test PRIVATE
     ${YAML_CPP_INCLUDE_DIR}
     ${OMPL_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/libs/libMultiRobotPlanning/include
 )
 
 # ── 4. Kütüphaneleri Bağla (Linking) ──────────────────────────────────

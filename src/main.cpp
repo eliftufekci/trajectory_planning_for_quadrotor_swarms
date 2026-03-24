@@ -8,6 +8,7 @@
 #include "SPARSRoadMapGenerator.hpp"
 #include "FCLConflictAnnotation.hpp"
 #include "SweptConflictAnnotation.hpp"
+#include "MAPFCSolver.hpp"
 
 void saveEnvironmentCSV(const Environment& env, const std::string& path) {
     std::ofstream f(path);
@@ -67,8 +68,11 @@ int main(int argc, char* argv[]) {
     saveEnvironmentCSV(env, "environment_data.csv");
     saveOctreeCSV(env, "octree_voxels.csv");
 
-    auto fcl_conflict_annotation = FCLConflictAnnotation(environment_graph, robot).annotate();
-    auto swept_conflict_annotation = SweptConflictAnnotation(environment_graph, robot).annotate();
+    FCLConflictAnnotation fcl_conflict_annotation(environment_graph, robot);
+    fcl_conflict_annotation.annotate();
+
+    SweptConflictAnnotation swept_conflict_annotation(environment_graph, robot);
+    swept_conflict_annotation.annotate();
 
     std::cout << "fcl conVV boyutu: " << fcl_conflict_annotation.conVV.size() << "\n";
     std::cout << "fcl conEV boyutu: " << fcl_conflict_annotation.conEV.size() << "\n";
@@ -77,6 +81,16 @@ int main(int argc, char* argv[]) {
     std::cout << "swept conVV boyutu: " << swept_conflict_annotation.conVV.size() << "\n";
     std::cout << "swept conEV boyutu: " << swept_conflict_annotation.conEV.size() << "\n";
     std::cout << "swept conEE boyutu: " << swept_conflict_annotation.conEE.size() << "\n";
+
+    std::cout << "\n=== Multi-Agent Path Finding (ECBS) ===\n";
+    // Çözücüyü swept_conflict_annotation ile başlatıyoruz (fcl de kullanabilirsiniz)
+    MPAFCSolver solver(environment_graph, fcl_conflict_annotation);
+    DiscreteSchedule schedule = solver.solve();
+
+    std::cout << "Makespan (K): " << schedule.K << "\n";
+    for (size_t i = 0; i < schedule.waypoint.size(); ++i) {
+        std::cout << "Robot " << i << " path length: " << schedule.waypoint[i].size() << "\n";
+    }
 
     return 0;
 }

@@ -1,6 +1,6 @@
 #pragma once
-#include <libMultiRobotPlanning/neighbor.hpp>
-#include <libMultiRobotPlanning/planresult.hpp>
+#include "libMultiRobotPlanning/neighbor.hpp"
+#include "libMultiRobotPlanning/planresult.hpp"
 #include "ConflictAnnotation.hpp"
 #include "Graph.hpp"
 #include "MAPFCTypes.hpp"
@@ -24,7 +24,7 @@ public:
     }
 
     int admissibleHeuristic(const State& s) {
-        return (graph.vertices[s.vertex_id].pos - graph.goal_vertices[s.vertex_id].pos).norm();
+        return static_cast<int>((graph.vertices[s.vertex_id].pos - graph.vertices[graph.goal_vertices[m_agentIdx]].pos).norm());
     }
 
     bool isSolution(const State& s) {
@@ -34,7 +34,7 @@ public:
     void getNeighbors(const State& s, std::vector<Neighbor<State, Action, int> >& neighbors) {
         neighbors.clear();
         
-        State n(s.time + 1, s.vertex_id);
+        // Move actions
         for( auto& adj_id : graph.adjacency[s.vertex_id]){
             int edge_id = graph.getEdgeId(s.vertex_id, adj_id);
 
@@ -44,11 +44,12 @@ public:
                 neighbors.emplace_back(next_state, Action(edge_id), 1);
             }
 
-            next_state = State(s.time, vertex_id);
-            if(stateValid(next_state)){
-                neighbors.emplace_back(next_state, Action(-1), 1);
-            }
+        }
 
+        // Wait action
+        State wait_state(s.time + 1, s.vertex_id);
+        if(stateValid(wait_state)){
+            neighbors.emplace_back(wait_state, Action(-1), 1); // Wait action has edge_id -1
         }
     }
 
@@ -163,20 +164,19 @@ public:
         } else if (conflict.type == Conflict::edge || conflict.type == Conflict::conEE) {
             Constraints c1;
             c1.edgeConstraints.emplace(EdgeConstraint(
-                conflict.time, conflict.edge_id1, conflict.edge_id2));
+                conflict.time, conflict.edge_id1));
             constraints[conflict.agent1] = c1;  
             Constraints c2;
-            c2.edgeConstraints.emplace(EdgeConstraint(
-                conflict.time, conflict.edge_id2, edge_id1));
+            c2.edgeConstraints.emplace(EdgeConstraint(conflict.time, conflict.edge_id2));
             constraints[conflict.agent2] = c2;
         } else if (conflict.type == Conflict::conEV) {
             Constraints c1;
             c1.edgeConstraints.emplace(EdgeConstraint(
-                conflict.time, conflict.edge_id1, conflict.edge_id2));
+                conflict.time, conflict.edge_id1));
             constraints[conflict.agent1] = c1;  
             Constraints c2;
-            c2.vertexConstraints.emplace(VertexConstraint(
-                conflict.time, conflict.vertex_id));
+            // Constrain the waiting agent at the next timestep to resolve the conflict over the interval [t, t+1]
+            c2.vertexConstraints.emplace(VertexConstraint(conflict.time + 1, conflict.vertex_id));
             constraints[conflict.agent2] = c2;
         }
     }
@@ -313,14 +313,9 @@ private:
         return con.find(VertexConstraint(s.time, s.vertex_id)) == con.end();
     }
 
-    bool transitionValid(const State& s1, const State& s2) {
+    bool transitionValid(int time, int edge_id) {
         const auto& con = m_constraints->edgeConstraints;
-        for (const auto& ec : con) {
-            if (ec.edge_id == graph.getEdgeId(s1.vertex_id, s2.vertex_id)) {
-                return false;
-            }
-        }
-        return true;
+        return con.find(EdgeConstraint(time, edge_id)) == con.end();
     }
 
 };
