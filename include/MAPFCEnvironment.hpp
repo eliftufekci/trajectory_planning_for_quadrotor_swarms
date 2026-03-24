@@ -6,9 +6,6 @@
 
 class MAPFCEnvironment{
 public:
-    size_t m_agentIdx; // şu anda hangi agent için low-level serach yapılıyor 
-    const Constraints* m_constraints; // o agent için aktif constraint seti
-    int m_lastGoalConstraint;
 
     void setLowLevelContext(size_t agentIdx, const Constraints* constraints) {
         m_agentIdx = agentIdx;
@@ -25,11 +22,9 @@ public:
         return (graph.vertices[s.vertex_id].pos - graph.goal_vertices[s.vertex_id].pos).norm();
     }
 
-
     bool isSolution(const State& s) {
         return s.vertex_id == graph.goal_vertices[m_agentIdx] && s.time > m_lastGoalConstraint;
     }
-
 
     void getNeighbors(const State& s, std::vector<Neighbor<State, Action, int> >& neighbors) {
         neighbors.clear();
@@ -53,59 +48,260 @@ public:
     }
 
     bool getFirstConflict( const std::vector<PlanResult<State, Action, int> >& solution, Conflict& result) {
-        // int max_t = 0;
-        // for (const auto& sol : solution) {
-        //     max_t = std::max<int>(max_t, sol.states.size() - 1);
-        // }
+        int max_t = 0;
+        for (const auto& sol : solution) {
+            max_t = std::max<int>(max_t, sol.states.size() - 1);
+        }
 
-        // for (int t = 0; t <= max_t; ++t) {
-        //     // check drive-drive vertex collisions
-        //     for (size_t i = 0; i < solution.size(); ++i) {
-        //         State state1 = getState(i, solution, t);
-        //         for (size_t j = i + 1; j < solution.size(); ++j) {
-        //         State state2 = getState(j, solution, t);
-        //         if (state1.equalExceptTime(state2)) {
-        //             result.time = t;
-        //             result.agent1 = i;
-        //             result.agent2 = j;
-        //             result.type = Conflict::Vertex;
-        //             result.x1 = state1.x;
-        //             result.y1 = state1.y;
-        //             // std::cout << "VC " << t << "," << state1.x << "," << state1.y <<
-        //             // std::endl;
-        //             return true;
-        //         }
-        //         }
-        //     }
-        //     // drive-drive edge (swap)
-        //     for (size_t i = 0; i < solution.size(); ++i) {
-        //         State state1a = getState(i, solution, t);
-        //         State state1b = getState(i, solution, t + 1);
-        //         for (size_t j = i + 1; j < solution.size(); ++j) {
-        //         State state2a = getState(j, solution, t);
-        //         State state2b = getState(j, solution, t + 1);
-        //         if (state1a.equalExceptTime(state2b) &&
-        //             state1b.equalExceptTime(state2a)) {
-        //             result.time = t;
-        //             result.agent1 = i;
-        //             result.agent2 = j;
-        //             result.type = Conflict::Edge;
-        //             result.x1 = state1a.x;
-        //             result.y1 = state1a.y;
-        //             result.x2 = state1b.x;
-        //             result.y2 = state1b.y;
-        //             return true;
-        //         }
-        //         }
-        //     }
-        // }
+        for (int t = 0; t <= max_t; ++t) {
+            for (size_t i = 0; i < solution.size(); ++i) {
+                State state1 = getState(i, solution, t);
+                
+                for (size_t j = i + 1; j < solution.size(); ++j) {
+                    State state2 = getState(j, solution, t);
+                    // P4: classic vertex collision
+                    if (state1.equalExceptTime(state2)) {
+                        result.time = t;
+                        result.agent1 = i;
+                        result.agent2 = j;
+                        result.type = Conflict::vertex;
+                        result.vertex_id = state1.vertex_id;
+                        return true;
+                    }
 
-        // return false;
+                    // P6: conVV
+                    if(annotation.conVV.count(state1.vertex_id) &&
+                       annotation.conVV[state1.vertex_id].count(state2.vertex_id)){
+                        result.time = t;
+                        result.agent1 = i;
+                        result.agent2 = j;
+                        result.type = Conflict::conVV;
+                        result.vertex_id = state1.vertex_id;
+                        return true;
+                    }
+
+                    bool i_moving = t < solution[i].actions.size();
+                    bool j_moving = t < solution[j].actions.size();
+
+                    if(i_moving && j_moving){
+                        auto e1 = solution[i].actions[t].first.edge_id;
+                        auto e2 = solution[j].actions[t].first.edge_id;
+
+                        // P5: classic edge swap
+                        // i: u->v, j:v->u
+                        if(e1 == graph.getEdgeId(state1.vertex_id, state2.vertex_id) &&
+                           e2 == graph.getEdgeId(state2.vertex_id, state1.vertex_id)){
+                            result.time = t;
+                            result.agent1 = i;
+                            result.agent2 = j;
+                            result.type = Conflict::edge;
+                            result.edge_id1 = e1;
+                            result.edge_id2 = e2;
+                            return true;
+                        }
+
+                        // P7: conEE
+                        if(annotation.conEE.count(e1) &&
+                           annotation.conEE[e1].count(e2)){
+                            result.time = t;
+                            result.agent1 = i;
+                            result.agent2 = j;
+                            result.type = Conflict::conEE;
+                            result.edge_id1 = e1;
+                            result.edge_id2 = e2;
+                            return true;
+                        }
+                    }
+
+                    // P8: conEV
+                    if(i_moving && !j_moving){
+                        auto e1 = solution[i].actions[t].first.edge_id;
+                        if(annotation.conEV.count(e1) &&
+                            annotation.conEV[e1].count(state2.vertex_id)){
+                            result.time = t;
+                            result.agent1 = i;
+                            result.agent2 = j;
+                            result.type = Conflict::conEV;
+                            result.edge_id1 = e1;
+                            result.vertex_id = state2.vertex_id;
+                            return true;
+                        }
+                    }
+                    if(!i_moving && j_moving){
+                        auto e2 = solution[j].actions[t].first.edge_id;
+                        if(annotation.conEV.count(e2) &&
+                            annotation.conEV[e2].count(state1.vertex_id)){
+                            result.time = t;
+                            result.agent1 = i;
+                            result.agent2 = j;
+                            result.type = Conflict::conEV;
+                            result.edge_id1 = e2;
+                            result.vertex_id = state1.vertex_id;
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
     }
+
+    void createConstraintsFromConflict(
+        const Conflict& conflict, std::map<size_t, Constraints>& constraints) {
+        if (conflict.type == Conflict::vertex || conflict.type == Conflict::conVV) {
+            Constraints c1;
+            c1.vertexConstraints.emplace(
+                VertexConstraint(conflict.time, conflict.vertex_id));
+            constraints[conflict.agent1] = c1;
+            constraints[conflict.agent2] = c1;
+        } else if (conflict.type == Conflict::edge || conflict.type == Conflict::conEE) {
+            Constraints c1;
+            c1.edgeConstraints.emplace(EdgeConstraint(
+                conflict.time, conflict.edge_id1, conflict.edge_id2));
+            constraints[conflict.agent1] = c1;  
+            Constraints c2;
+            c2.edgeConstraints.emplace(EdgeConstraint(
+                conflict.time, conflict.edge_id2, edge_id1));
+            constraints[conflict.agent2] = c2;
+        } else if (conflict.type == Conflict::conEV) {
+            Constraints c1;
+            c1.edgeConstraints.emplace(EdgeConstraint(
+                conflict.time, conflict.edge_id1, conflict.edge_id2));
+            constraints[conflict.agent1] = c1;  
+            Constraints c2;
+            c2.vertexConstraints.emplace(VertexConstraint(
+                conflict.time, conflict.vertex_id));
+            constraints[conflict.agent2] = c2;
+        }
+    }
+
+    // low-level
+    int focalStateHeuristic(
+        const State& s, int /*gScore*/,
+        const std::vector<PlanResult<State, Action, int> >& solution) {
+        int numConflicts = 0;
+        for (size_t i = 0; i < solution.size(); ++i) {
+            if (i != m_agentIdx && !solution[i].states.empty()) {
+                State state2 = getState(i, solution, s.time);
+                if (s.equalExceptTime(state2)) {
+                    ++numConflicts;
+                }
+            }
+        }
+        return numConflicts;
+    }
+
+    // low-level
+    int focalTransitionHeuristic(
+        const State& s1a, const State& s1b, int /*gScoreS1a*/, int /*gScoreS1b*/,
+        const std::vector<PlanResult<State, Action, int> >& solution) {
+        int numConflicts = 0;
+        for (size_t i = 0; i < solution.size(); ++i) {
+            if (i != m_agentIdx && !solution[i].states.empty()) {
+                State s2a = getState(i, solution, s1a.time);
+                State s2b = getState(i, solution, s1b.time);
+                if (s1a.equalExceptTime(s2b) && s1b.equalExceptTime(s2a)) {
+                    ++numConflicts;
+                }
+            }
+        }
+        return numConflicts;
+    }
+
+    // Count all conflicts
+    int focalHeuristic(
+        const std::vector<PlanResult<State, Action, int> >& solution) {
+        int numConflicts = 0;
+
+        int max_t = 0;
+        for (const auto& sol : solution) {
+            max_t = std::max<int>(max_t, sol.states.size() - 1);
+        }
+
+        for (int t = 0; t < max_t; ++t) {
+            // check drive-drive vertex collisions
+            for (size_t i = 0; i < solution.size(); ++i) {
+                State state1 = getState(i, solution, t);
+                for (size_t j = i + 1; j < solution.size(); ++j) {
+                    State state2 = getState(j, solution, t);
+                    // P4: classic vertex collision
+                    if (state1.equalExceptTime(state2)) {
+                        ++numConflicts;
+                    }
+
+                    // P6: conVV
+                    if(annotation.conVV.count(state1.vertex_id) &&
+                       annotation.conVV[state1.vertex_id].count(state2.vertex_id)){
+                        ++numConflicts;
+                    }
+
+                    bool i_moving = t < solution[i].actions.size();
+                    bool j_moving = t < solution[j].actions.size();
+
+                    if(i_moving && j_moving){
+                        auto e1 = solution[i].actions[t].first.edge_id;
+                        auto e2 = solution[j].actions[t].first.edge_id;
+
+                        // P5: classic edge swap
+                        // i: u->v, j:v->u
+                        if(e1 == graph.getEdgeId(state1.vertex_id, state2.vertex_id) &&
+                           e2 == graph.getEdgeId(state2.vertex_id, state1.vertex_id)){
+                            ++numConflicts;
+                        }
+
+                        // P7: conEE
+                        if(annotation.conEE.count(e1) &&
+                           annotation.conEE[e1].count(e2)){
+                            ++numConflicts;
+                        }
+                    }
+
+                    // P8: conEV
+                    if(i_moving && !j_moving){
+                        auto e1 = solution[i].actions[t].first.edge_id;
+                        if(annotation.conEV.count(e1) &&
+                            annotation.conEV[e1].count(state2.vertex_id)){
+                            ++numConflicts;
+                        }
+                    }
+                    if(!i_moving && j_moving){
+                        auto e2 = solution[j].actions[t].first.edge_id;
+                        if(annotation.conEV.count(e2) &&
+                            annotation.conEV[e2].count(state1.vertex_id)){
+                            ++numConflicts;
+                        }
+                    }
+                }
+            }
+        }
+        return numConflicts;
+    }
+
+    void onExpandHighLevelNode(int /*cost*/) { m_highLevelExpanded++; }
+
+    void onExpandLowLevelNode(const State& /*s*/, int /*fScore*/, int /*gScore*/) { m_lowLevelExpanded++; }
+
+    int highLevelExpanded() { return m_highLevelExpanded; }
+
+    int lowLevelExpanded() const { return m_lowLevelExpanded; }
 
 private:
     const Graph& graph;
     const ConflictAnnotation& annotation;
+    size_t m_agentIdx; // şu anda hangi agent için low-level serach yapılıyor 
+    const Constraints* m_constraints; // o agent için aktif constraint seti
+    int m_lastGoalConstraint;
+    int m_highLevelExpanded;
+    int m_lowLevelExpanded;
+
+    State getState(size_t agentIdx, const std::vector<PlanResult<State, Action, int> >& solution, size_t t) {
+        if (t < solution[agentIdx].states.size()) {
+            return solution[agentIdx].states[t].first;
+        }
+
+        return solution[agentIdx].states.back().first; // goalde bekliyor
+    }
 
     bool stateValid(const State& s) {
         const auto& con = m_constraints->vertexConstraints;

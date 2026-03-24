@@ -48,9 +48,11 @@ struct Action{ // bir timestmapde yapılan bir hareket
 
 struct Conflict{
     enum Type {
-        VV,
-        EE,
-        EV
+        vertex,
+        edge,
+        conVV,
+        conEE,
+        conEV
     };
 
     size_t agent1;
