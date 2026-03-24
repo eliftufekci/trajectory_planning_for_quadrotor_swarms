@@ -160,10 +160,10 @@ private:
 
     void connectAgents(Graph& graph) {
         for (const auto& agent : env.agents) {
-            auto s = connectPoint(agent.start, graph, indexMap);
-            auto g = connectPoint(agent.goal,  graph, indexMap);
-            graph.start_vertices.insert(s);
-            graph.goal_vertices.insert(g);
+            auto s = connectPoint(agent.start, graph);
+            auto g = connectPoint(agent.goal,  graph);
+            graph.start_vertices.push_back(s);
+            graph.goal_vertices.push_back(g);
         }
     }
 

@@ -31,7 +31,7 @@ public:
         return s.vertex_id == graph.goal_vertices[m_agentIdx] && s.time > m_lastGoalConstraint;
     }
 
-    void getNeighbors(const State& s, std::vector<Neighbor<State, Action, int> >& neighbors) {
+    void getNeighbors(const State& s, std::vector<libMultiRobotPlanning::Neighbor<State, Action, int> >& neighbors) {
         neighbors.clear();
         
         // Move actions
@@ -53,7 +53,7 @@ public:
         }
     }
 
-    bool getFirstConflict( const std::vector<PlanResult<State, Action, int> >& solution, Conflict& result) {
+    bool getFirstConflict( const std::vector<libMultiRobotPlanning::PlanResult<State, Action, int> >& solution, Conflict& result) {
         int max_t = 0;
         for (const auto& sol : solution) {
             max_t = std::max<int>(max_t, sol.states.size() - 1);
@@ -184,7 +184,7 @@ public:
     // low-level
     int focalStateHeuristic(
         const State& s, int /*gScore*/,
-        const std::vector<PlanResult<State, Action, int> >& solution) {
+        const std::vector<libMultiRobotPlanning::PlanResult<State, Action, int> >& solution) {
         int numConflicts = 0;
         for (size_t i = 0; i < solution.size(); ++i) {
             if (i != m_agentIdx && !solution[i].states.empty()) {
@@ -200,7 +200,7 @@ public:
     // low-level
     int focalTransitionHeuristic(
         const State& s1a, const State& s1b, int /*gScoreS1a*/, int /*gScoreS1b*/,
-        const std::vector<PlanResult<State, Action, int> >& solution) {
+        const std::vector<libMultiRobotPlanning::PlanResult<State, Action, int> >& solution) {
         int numConflicts = 0;
         for (size_t i = 0; i < solution.size(); ++i) {
             if (i != m_agentIdx && !solution[i].states.empty()) {
@@ -216,7 +216,7 @@ public:
 
     // Count all conflicts
     int focalHeuristic(
-        const std::vector<PlanResult<State, Action, int> >& solution) {
+        const std::vector<libMultiRobotPlanning::PlanResult<State, Action, int> >& solution) {
         int numConflicts = 0;
 
         int max_t = 0;
@@ -300,7 +300,7 @@ private:
     int m_highLevelExpanded;
     int m_lowLevelExpanded;
 
-    State getState(size_t agentIdx, const std::vector<PlanResult<State, Action, int> >& solution, size_t t) {
+    State getState(size_t agentIdx, const std::vector<libMultiRobotPlanning::PlanResult<State, Action, int> >& solution, size_t t) {
         if (t < solution[agentIdx].states.size()) {
             return solution[agentIdx].states[t].first;
         }

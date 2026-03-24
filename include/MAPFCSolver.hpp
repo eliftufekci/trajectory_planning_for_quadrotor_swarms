@@ -4,6 +4,7 @@
 #include "DiscreteSchedule.hpp"
 #include "Graph.hpp"
 #include "MAPFCTypes.hpp"
+#include "MAPFCEnvironment.hpp"
 
 class MPAFCSolver{
 public:
@@ -26,7 +27,7 @@ public:
 
         // `w` ne kadar küçükse o kadar optimal ama yavaş. 1.0 = optimal CBS, 1.3-1.5 pratikte iyi denge.
 
-        std::vector<PlanResult<State, Action, int>> solution;
+        std::vector<libMultiRobotPlanning::PlanResult<State, Action, int>> solution;
         bool success = ecbs.search(startStates, solution);
 
         std::vector<std::vector<int>> waypoints;

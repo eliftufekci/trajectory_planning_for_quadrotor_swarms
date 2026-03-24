@@ -127,8 +127,8 @@ private:
         for (const auto& agent : env.agents) {
             auto s = connectPoint(agent.start, graph, indexMap);
             auto g = connectPoint(agent.goal,  graph, indexMap);
-            graph.start_vertices.insert(s);
-            graph.goal_vertices.insert(g);
+            graph.start_vertices.push_back(s);
+            graph.goal_vertices.push_back(g);
         }
     }
 
@@ -140,7 +140,7 @@ private:
         // Zaten birebir grid noktasıysa ek işlem yok
         auto key = toKey(point);
         if (indexMap.count(key)) {
-            if ((toPos(key) - point).norm() < 1e-6) return ;
+            if ((toPos(key) - point).norm() < 1e-6) return indexMap[key];
         }
 
         
