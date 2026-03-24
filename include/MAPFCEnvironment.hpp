@@ -1,4 +1,6 @@
 #pragma once
+#include <libMultiRobotPlanning/neighbor.hpp>
+#include <libMultiRobotPlanning/planresult.hpp>
 #include "ConflictAnnotation.hpp"
 #include "Graph.hpp"
 #include "MAPFCTypes.hpp"
@@ -6,6 +8,9 @@
 
 class MAPFCEnvironment{
 public:
+    MAPFCEnvironment(const Graph& graph, const ConflictAnnotation& annotation)
+        : graph(graph), annotation(annotation), m_highLevelExpanded(0), m_lowLevelExpanded(0), m_agentIdx(0), m_constraints(nullptr), m_lastGoalConstraint(-1) {}
+
 
     void setLowLevelContext(size_t agentIdx, const Constraints* constraints) {
         m_agentIdx = agentIdx;

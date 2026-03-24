@@ -76,6 +76,11 @@ struct VertexConstraint{
     bool operator==(const VertexConstraint& vc) const {
         return time == vc.time && vertex_id == vc.vertex_id;
     }
+
+    bool operator<(const VertexConstraint& other) const {
+        // return std::tie(time, x, y) < std::tie(other.time, other.x, other.y);
+        return std::tie(time, vertex_id) < std::tie(other.time, other.vertex_id);
+    }
 };
 
 
@@ -103,6 +108,10 @@ struct EdgeConstraint{
     bool operator==(const EdgeConstraint& ec) const {
         return time == ec.time && edge_id == ec.edge_id;
     }
+
+    bool operator<(const EdgeConstraint& other) const {
+        return std::tie(time, edge_id) < std::tie(other.time, other.edge_id);
+    }
 };
 
 namespace std{
@@ -124,7 +133,7 @@ struct Constraints {
     std::unordered_set<VertexConstraint> vertexConstraints;
     std::unordered_set<EdgeConstraint> edgeConstraints;
 
-    void add(const Constraints& ) {
+    void add(const Constraints& other) {
         vertexConstraints.insert( other.vertexConstraints.begin(),
                                   other.vertexConstraints.end());
 
@@ -145,20 +154,4 @@ struct Constraints {
         }
         return false;
     }
-};
-
-struct Neighbor {
-    Neighbor(const State& state, const Action& action, Cost cost)
-        : state(state), action(action), cost(cost) {}
-
-    State state;
-    Action action;
-    float cost;
-};
-
-struct PlanResult {
-    std::vector<std::pair<State, float> > states;
-    std::vector<std::pair<Action, float> > actions;
-    float cost;
-    float fmin;
 };
