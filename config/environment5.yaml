@@ -1,0 +1,25 @@
+# Environment 5
+# Labirent - iki paralel koridor, robotlar gecis noktasinda karsilasir
+world_bounds:
+    min: [0.0, 0.0, 0.0]
+    max: [6.0, 4.0, 1.0]
+
+obstacles:
+  # İki yatay duvar, 3 paralel koridor oluşturur
+  - min: [0.0, 1.0, 0.0]
+    max: [6.0, 1.5, 1.0]
+  - min: [0.0, 2.5, 0.0]
+    max: [6.0, 3.0, 1.0]
+
+agents:
+  - id: 0
+    start: [0.5, 2.0, 0.5]
+    goal:  [5.5, 2.0, 0.5]
+
+  - id: 1
+    start: [5.5, 0.5, 0.5]
+    goal:  [0.5, 0.5, 0.5]
+
+  - id: 2
+    start: [0.5, 3.5, 0.5]
+    goal:  [5.5, 3.5, 0.5]

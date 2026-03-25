@@ -1,0 +1,28 @@
+world_bounds:
+    min: [0.0, 0.0, 0.0]
+    max: [5.0, 4.0, 3.0]
+
+obstacles:
+  # Görseldeki silindirik engeli temsil eden ana blok (Merkezde)
+  - min: [2.0, 0.0, 0.0]
+    max: [3.0, 2.5, 2.5]
+  
+  # Görseldeki arka duvar efekti (Sınırları belirlemek için)
+  - min: [0.0, 3.8, 0.0]
+    max: [5.0, 4.0, 3.0]
+
+agents:
+  # Ajan 0: Görseldeki (a) şıkkındaki gibi engelin solundan dolanıp arkaya geçer
+  - id: 0
+    start: [0.5, 1.0, 0.5]
+    goal: [4.5, 3.5, 0.5]
+  
+  # Ajan 1: Engelin üstünden (Z ekseni) aşmayı dener
+  - id: 1
+    start: [1.5, 0.5, 0.2]
+    goal: [2.5, 3.5, 2.8]
+
+  # Ajan 2: Sağ taraftaki boşluğu kullanarak pürüzsüz bir kavis çizer
+  - id: 2
+    start: [4.0, 0.5, 1.0]
+    goal: [1.0, 3.5, 2.0]
