@@ -51,11 +51,11 @@ int main(int argc, char* argv[]) {
     RobotModel robot;
     double step_size = 0.5;
     FCLCollisionChecker fclCollisionChecker(env, robot);
-    GridRoadMapGenerator gridRoadMapGenerator(env, fclCollisionChecker, step_size);
-    Graph environment_graph = gridRoadMapGenerator.createRoadMap();
-    // SPARSRoadMapGenerator sparsRoadMapGenerator(env, fclCollisionChecker);
-    // Graph environment_graph = sparsRoadMapGenerator.createRoadMap();
 
+    // GridRoadMapGenerator roadMapGenerator(env, fclCollisionChecker, step_size);
+    SPARSRoadMapGenerator roadMapGenerator(env, fclCollisionChecker);
+
+    Graph environment_graph = roadMapGenerator.createRoadMap();
     environment_graph.saveToCSV("vertices.csv", "edges.csv");
 
     std::cout << "Dünya min : " << env.world_min.transpose() << "\n";
@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "\n=== Multi-Agent Path Finding (ECBS) ===\n";
     // Çözücüyü swept_conflict_annotation ile başlatıyoruz (fcl de kullanabilirsiniz)
-    MPAFCSolver solver(environment_graph, fcl_conflict_annotation);
+    MPAFCSolver solver(environment_graph, swept_conflict_annotation);
     DiscreteSchedule schedule = solver.solve();
 
     std::cout << "Makespan (K): " << schedule.K << "\n";

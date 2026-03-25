@@ -40,6 +40,19 @@ def load_edges_csv(path):
     return edges
 
 
+def load_paths_csv(path):
+    """paths.csv -> {agent_id: [(x,y,z), ...]}"""
+    paths = {}
+    if not os.path.exists(path):
+        return paths
+    with open(path) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            agent_id = int(row["agent_id"])
+            pos = (float(row["x"]), float(row["y"]), float(row["z"]))
+            paths.setdefault(agent_id, []).append(pos)
+    return paths
+
 # ─────────────────────────────────────────────
 #  AABB → 8 köşe noktası
 # ─────────────────────────────────────────────
@@ -142,7 +155,7 @@ def axis_style(title, axis_range):
 # ─────────────────────────────────────────────
 #  Ana figür
 # ─────────────────────────────────────────────
-def build_figure(env, vertices, edges):
+def build_figure(env, vertices, edges, paths):
     fig  = go.Figure()
     wmin = env["world_min"]
     wmax = env["world_max"]
@@ -243,6 +256,25 @@ def build_figure(env, vertices, edges):
                 hoverinfo="skip",
             ))
 
+    # ── Agent Yolları (Paths) ────────────────────────────────────────
+    for agent_id, path_points in paths.items():
+        if not path_points:
+            continue
+        col = AGENT_COLORS[agent_id % len(AGENT_COLORS)]
+        path_np = np.array(path_points)
+        fig.add_trace(go.Scatter3d(
+            x=path_np[:, 0], y=path_np[:, 1], z=path_np[:, 2],
+            mode="lines+markers",
+            line=dict(color=col, width=5),
+            marker=dict(size=2.5, color=col),
+            name=f"Robot {agent_id} Yolu",
+            hovertemplate=(
+                f"<b>Robot {agent_id} Yolu (t=%{{customdata[0]}})</b>"
+                f"<br>x:%{{x:.2f}} y:%{{y:.2f}} z:%{{z:.2f}}<extra></extra>"
+            ),
+            customdata=np.arange(len(path_points)).reshape(-1,1)
+        ))
+
     # ── Layout ───────────────────────────────────────────────────────
     margin = 1.0
     fig.update_layout(
@@ -285,24 +317,30 @@ def main():
     env_csv  = os.path.join(build, "environment_data.csv")
     vert_csv = os.path.join(build, "vertices.csv")
     edge_csv = os.path.join(build, "edges.csv")
+    paths_csv = os.path.join(build, "paths.csv")
 
     if not os.path.exists(env_csv):
         print("HATA: environment_data.csv bulunamadı — önce C++ programını çalıştır.")
         return
 
     print("CSV dosyaları yükleniyor...")
-    env      = load_environment_csv(env_csv)
-    vertices = load_vertices_csv(vert_csv) if os.path.exists(vert_csv) else {}
-    edges    = load_edges_csv(edge_csv)    if os.path.exists(edge_csv) else []
+    env      = load_environment_csv(env_csv) 
+    vertices = load_vertices_csv(vert_csv) if os.path.exists(vert_csv) else {} 
+    edges    = load_edges_csv(edge_csv)    if os.path.exists(edge_csv) else [] 
+    paths    = load_paths_csv(paths_csv)
 
     print(f"  Engel  : {len(env['obstacles'])}")
     print(f"  Agent  : {len(env['starts'])}")
     print(f"  Vertex : {len(vertices)}")
     print(f"  Edge   : {len(edges)}")
+    if paths:
+        print(f"  Yol    : {len(paths)}")
 
-    fig = build_figure(env, vertices, edges)
-    out = os.path.join(base, "environment_interactive.html")
+    fig = build_figure(env, vertices, edges, paths)
+    out_filename = "solution_interactive.html" if paths else "environment_interactive.html"
+    out = os.path.join(base, out_filename)
     fig.write_html(out, include_plotlyjs="cdn")
+
     print(f"\nKaydedildi: {out}")
     print("Tarayıcıda aç — döndür / zoom / legend'dan katman gizle.")
 

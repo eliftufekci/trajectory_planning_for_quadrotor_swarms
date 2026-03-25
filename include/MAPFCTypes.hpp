@@ -16,6 +16,10 @@ struct State{
         return vertex_id == s.vertex_id; 
     }
 
+    friend std::ostream& operator<<(std::ostream& os, const State& s) {
+        return os << s.time << ": (" << s.vertex_id << ")";
+    }
+
 };
 
 namespace std{
@@ -64,6 +68,21 @@ struct Conflict{
     int edge_id1;  // conEE ve conEV için
     int edge_id2;
 
+    friend std::ostream& operator<<(std::ostream& os, const Conflict& c) {
+        switch (c.type) {
+        case vertex:
+            return os << c.time << ": Vertex(" << c.vertex_id << ")";
+        case edge:
+            return os << c.time << ": Edge(" << c.edge_id1 << ")";
+        case conVV:
+            return os << c.time << ": ConVV(" << c.vertex_id << ")";
+        case conEE:
+            return os << c.time << ": ConEE(" << c.edge_id1 << ", " << c.edge_id2 << ")";
+        case conEV:
+            return os << c.time << ": ConEV(" << c.edge_id1 << "," << c.vertex_id << ")";
+        }
+        return os;
+    }
 };
 
 

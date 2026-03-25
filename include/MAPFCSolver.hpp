@@ -30,16 +30,30 @@ public:
         std::vector<libMultiRobotPlanning::PlanResult<State, Action, int>> solution;
         bool success = ecbs.search(startStates, solution);
 
+        int makespan = 0;
         std::vector<std::vector<int>> waypoints;
         if (success) {
             waypoints.resize(solution.size());
             for(size_t i = 0; i < solution.size(); i++){
+                makespan = std::max(makespan, (int)solution[i].states.size() - 1);
                 for(const auto& state_pair : solution[i].states){
                     waypoints[i].push_back(state_pair.first.vertex_id);
                 }
             }
+
+            std::ofstream paths_file("paths.csv");
+            paths_file << "agent_id,timestep,vertex_id,x,y,z\n";
+            for (size_t i = 0; i < solution.size(); ++i) {
+                for (size_t t = 0; t < solution[i].states.size(); ++t) {
+                    const auto& state = solution[i].states[t].first;
+                    const auto& pos = graph.vertices[state.vertex_id].pos;
+                    paths_file << i << "," << t << "," << state.vertex_id << ","
+                               << pos.x() << "," << pos.y() << "," << pos.z() << "\n";
+                }
+            }
+            std::cout << "Kaydedildi: paths.csv\n";
         }
-        return DiscreteSchedule(waypoints, ecbs.getMakespan());
+        return DiscreteSchedule(waypoints, makespan);
     }
 
 private:

@@ -35,7 +35,7 @@ public:
         neighbors.clear();
         
         // Move actions
-        for( auto& adj_id : graph.adjacency[s.vertex_id]){
+        for( const auto& adj_id : graph.neighbors(s.vertex_id)){
             int edge_id = graph.getEdgeId(s.vertex_id, adj_id);
 
             auto next_state = State(s.time + 1, adj_id);
@@ -77,7 +77,7 @@ public:
 
                     // P6: conVV
                     if(annotation.conVV.count(state1.vertex_id) &&
-                       annotation.conVV[state1.vertex_id].count(state2.vertex_id)){
+                       annotation.conVV.at(state1.vertex_id).count(state2.vertex_id)){
                         result.time = t;
                         result.agent1 = i;
                         result.agent2 = j;
@@ -108,7 +108,7 @@ public:
 
                         // P7: conEE
                         if(annotation.conEE.count(e1) &&
-                           annotation.conEE[e1].count(e2)){
+                           annotation.conEE.at(e1).count(e2)){
                             result.time = t;
                             result.agent1 = i;
                             result.agent2 = j;
@@ -123,7 +123,7 @@ public:
                     if(i_moving && !j_moving){
                         auto e1 = solution[i].actions[t].first.edge_id;
                         if(annotation.conEV.count(e1) &&
-                            annotation.conEV[e1].count(state2.vertex_id)){
+                            annotation.conEV.at(e1).count(state2.vertex_id)){
                             result.time = t;
                             result.agent1 = i;
                             result.agent2 = j;
@@ -136,7 +136,7 @@ public:
                     if(!i_moving && j_moving){
                         auto e2 = solution[j].actions[t].first.edge_id;
                         if(annotation.conEV.count(e2) &&
-                            annotation.conEV[e2].count(state1.vertex_id)){
+                            annotation.conEV.at(e2).count(state1.vertex_id)){
                             result.time = t;
                             result.agent1 = i;
                             result.agent2 = j;
@@ -237,7 +237,7 @@ public:
 
                     // P6: conVV
                     if(annotation.conVV.count(state1.vertex_id) &&
-                       annotation.conVV[state1.vertex_id].count(state2.vertex_id)){
+                       annotation.conVV.at(state1.vertex_id).count(state2.vertex_id)){
                         ++numConflicts;
                     }
 
@@ -257,7 +257,7 @@ public:
 
                         // P7: conEE
                         if(annotation.conEE.count(e1) &&
-                           annotation.conEE[e1].count(e2)){
+                           annotation.conEE.at(e1).count(e2)){
                             ++numConflicts;
                         }
                     }
@@ -266,14 +266,14 @@ public:
                     if(i_moving && !j_moving){
                         auto e1 = solution[i].actions[t].first.edge_id;
                         if(annotation.conEV.count(e1) &&
-                            annotation.conEV[e1].count(state2.vertex_id)){
+                            annotation.conEV.at(e1).count(state2.vertex_id)){
                             ++numConflicts;
                         }
                     }
                     if(!i_moving && j_moving){
                         auto e2 = solution[j].actions[t].first.edge_id;
                         if(annotation.conEV.count(e2) &&
-                            annotation.conEV[e2].count(state1.vertex_id)){
+                            annotation.conEV.at(e2).count(state1.vertex_id)){
                             ++numConflicts;
                         }
                     }

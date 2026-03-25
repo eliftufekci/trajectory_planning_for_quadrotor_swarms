@@ -53,6 +53,21 @@ def load_edges_csv(path="build/edges.csv"):
     return edges
 
 
+def load_paths_csv(path="build/paths.csv"):
+    """paths.csv -> {agent_id: [(x,y,z), ...]}"""
+    paths = {}
+    if not os.path.exists(path):
+        return paths
+    with open(path) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            agent_id = int(row["agent_id"])
+            pos = (float(row["x"]), float(row["y"]), float(row["z"]))
+            paths.setdefault(agent_id, []).append(pos)
+    return paths
+
+
+
 
 def draw_box_3d(ax, mn, mx, facecolor, alpha=0.35, edgecolor="white", lw=0.6):
     x0,y0,z0 = mn;  x1,y1,z1 = mx
@@ -91,7 +106,7 @@ PALETTE = {
 
 
 
-def plot_3d(env, voxels, vertices, edges, out="environment_3d.png"):
+def plot_3d(env, voxels, vertices, edges, paths, out="environment_3d.png"):
     fig = plt.figure(figsize=(14, 10))
     fig.patch.set_facecolor(PALETTE["bg_fig"])
     ax  = fig.add_subplot(111, projection="3d")
@@ -149,6 +164,16 @@ def plot_3d(env, voxels, vertices, edges, out="environment_3d.png"):
                     "--", color=col, alpha=0.35, lw=1.2)
         legend_items.append(mpatches.Patch(color=col, label=f"Robot {ag_id}"))
 
+    # Agent Yolları (Paths)
+    for agent_id, path_points in paths.items():
+        if not path_points:
+            continue
+        col = PALETTE["agents"][agent_id % len(PALETTE["agents"])]
+        path_np = np.array(path_points)
+        ax.plot(path_np[:, 0], path_np[:, 1], path_np[:, 2],
+                color=col, lw=2.5, alpha=0.9, zorder=9, marker='o', markersize=3, markeredgecolor='none')
+        legend_items.append(mpatches.Patch(color=col, label=f"Robot {agent_id} Yolu"))
+
     for i in range(len(env["obstacles"])):
         legend_items.append(mpatches.Patch(
             color=PALETTE["obs"][i % len(PALETTE["obs"])], label=f"Engel {i+1}"))
@@ -176,7 +201,7 @@ def plot_3d(env, voxels, vertices, edges, out="environment_3d.png"):
 #  2. Üstten görünüm (X-Y)
 # ───────────────────────────────────
 
-def plot_topdown(env, vertices, edges, out="environment_topdown.png"):
+def plot_topdown(env, vertices, edges, paths, out="environment_topdown.png"):
     fig, ax = plt.subplots(figsize=(10, 10))
     fig.patch.set_facecolor(PALETTE["bg_fig"])
     ax.set_facecolor(PALETTE["bg_ax"])
@@ -233,6 +258,15 @@ def plot_topdown(env, vertices, edges, out="environment_topdown.png"):
             ax.scatter(g[0], g[1], c=col, s=160, marker="s", zorder=10, label=f"Robot {ag_id} Goal")
             ax.annotate(f" G{ag_id}(z={g[2]:.1f})", (g[0], g[1]), color=col, fontsize=8)
 
+    # Agent Yolları (Paths)
+    for agent_id, path_points in paths.items():
+        if not path_points:
+            continue
+        col = PALETTE["agents"][agent_id % len(PALETTE["agents"])]
+        path_np = np.array(path_points)
+        ax.plot(path_np[:, 0], path_np[:, 1],
+                color=col, lw=2.0, alpha=0.8, zorder=5, marker='.', markersize=4)
+
     ax.set_xlim(wmin[0]-1, wmax[0]+1)
     ax.set_ylim(wmin[1]-1, wmax[1]+1)
     ax.set_xlabel("X", color="white");  ax.set_ylabel("Y", color="white")
@@ -252,7 +286,7 @@ def plot_topdown(env, vertices, edges, out="environment_topdown.png"):
 #  3. Yan görünüm (X-Z)
 # ───────────────────────────────────
 
-def plot_sideview(env, vertices, edges, out="environment_side.png"):
+def plot_sideview(env, vertices, edges, paths, out="environment_side.png"):
     fig, ax = plt.subplots(figsize=(12, 7))
     fig.patch.set_facecolor(PALETTE["bg_fig"])
     ax.set_facecolor(PALETTE["bg_ax"])
@@ -290,6 +324,15 @@ def plot_sideview(env, vertices, edges, out="environment_side.png"):
         if s and g:
             ax.plot([s[0],g[0]], [s[2],g[2]], "--", color=col, alpha=0.4, lw=1.5)
 
+    # Agent Yolları (Paths)
+    for agent_id, path_points in paths.items():
+        if not path_points:
+            continue
+        col = PALETTE["agents"][agent_id % len(PALETTE["agents"])]
+        path_np = np.array(path_points)
+        ax.plot(path_np[:, 0], path_np[:, 2],
+                color=col, lw=2.0, alpha=0.8, zorder=5, marker='.', markersize=4)
+
     ax.set_xlim(wmin[0]-1, wmax[0]+1)
     ax.set_ylim(wmin[2]-0.5, wmax[2]+1)
     ax.set_xlabel("X", color="white");  ax.set_ylabel("Z (Yükseklik)", color="white")
@@ -318,6 +361,7 @@ def main():
     oct_csv  = os.path.join(build, "octree_voxels.csv")
     vert_csv = os.path.join(build, "vertices.csv")
     edge_csv = os.path.join(build, "edges.csv")
+    paths_csv = os.path.join(build, "paths.csv")
 
     # Dosya varlık kontrolü
     missing = [p for p in [env_csv, oct_csv] if not os.path.exists(p)]
@@ -332,20 +376,25 @@ def main():
     voxels   = load_octree_csv(oct_csv)
     vertices = load_vertices_csv(vert_csv)  if os.path.exists(vert_csv) else {}
     edges    = load_edges_csv(edge_csv)     if os.path.exists(edge_csv) else []
+    paths    = load_paths_csv(paths_csv)
 
     print(f"  Engel sayısı : {len(env['obstacles'])}")
     print(f"  Agent sayısı : {len(env['starts'])}")
     print(f"  Voxel sayısı : {len(voxels)}")
     print(f"  Vertex sayısı: {len(vertices)}")
     print(f"  Edge sayısı  : {len(edges)}")
+    if paths:
+        print(f"  Bulunan yol sayısı: {len(paths)}")
     print()
 
     out_dir = base  # görseller scriptle aynı yerde
-    plot_3d      (env, voxels, vertices, edges, os.path.join(out_dir, "environment_3d.png"))
-    plot_topdown (env, vertices, edges,         os.path.join(out_dir, "environment_topdown.png"))
-    plot_sideview(env, vertices, edges,         os.path.join(out_dir, "environment_side.png"))
+    if not paths:
+        print("Çözüm yolu (paths.csv) bulunamadı. Sadece ortam çizdiriliyor.")
+    plot_3d      (env, voxels, vertices, edges, paths, os.path.join(out_dir, "solution_3d.png"))
+    plot_topdown (env, vertices, edges, paths,         os.path.join(out_dir, "solution_topdown.png"))
+    plot_sideview(env, vertices, edges, paths,         os.path.join(out_dir, "solution_side.png"))
 
-    print("\nTüm görseller oluşturuldu.")
+    print("\nTüm çözüm görselleri oluşturuldu." if paths else "\nOrtam görselleri oluşturuldu.")
 
 if __name__ == "__main__":
     main()

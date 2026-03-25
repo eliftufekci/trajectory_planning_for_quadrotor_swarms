@@ -3,8 +3,8 @@
 
 struct DiscreteSchedule{
     std::vector<std::vector<int>> waypoint; // (robot → path of vertex ids)
-    double K; //makespan
+    int K; //makespan
 
-    DiscreteSchedule( const std::vector<std::vector<int>>& waypoint, double K)
+    DiscreteSchedule( const std::vector<std::vector<int>>& waypoint, int K)
         : waypoint(waypoint), K(K) {}
 };
