@@ -157,8 +157,8 @@ public:
         const Conflict& conflict, std::map<size_t, Constraints>& constraints) {
         if (conflict.type == Conflict::vertex || conflict.type == Conflict::conVV) {
             Constraints c1;
-            c1.vertexConstraints.emplace(
-                VertexConstraint(conflict.time, conflict.vertex_id));
+            c1.vertexConstraints.emplace(VertexConstraint(
+                conflict.time, conflict.vertex_id));
             constraints[conflict.agent1] = c1;
             constraints[conflict.agent2] = c1;
         } else if (conflict.type == Conflict::edge || conflict.type == Conflict::conEE) {
@@ -167,7 +167,8 @@ public:
                 conflict.time, conflict.edge_id1));
             constraints[conflict.agent1] = c1;  
             Constraints c2;
-            c2.edgeConstraints.emplace(EdgeConstraint(conflict.time, conflict.edge_id2));
+            c2.edgeConstraints.emplace(EdgeConstraint(
+                conflict.time, conflict.edge_id2));
             constraints[conflict.agent2] = c2;
         } else if (conflict.type == Conflict::conEV) {
             Constraints c1;
@@ -176,7 +177,8 @@ public:
             constraints[conflict.agent1] = c1;  
             Constraints c2;
             // Constrain the waiting agent at the next timestep to resolve the conflict over the interval [t, t+1]
-            c2.vertexConstraints.emplace(VertexConstraint(conflict.time + 1, conflict.vertex_id));
+            c2.vertexConstraints.emplace(VertexConstraint(
+                conflict.time + 1, conflict.vertex_id));
             constraints[conflict.agent2] = c2;
         }
     }
@@ -190,6 +192,11 @@ public:
             if (i != m_agentIdx && !solution[i].states.empty()) {
                 State state2 = getState(i, solution, s.time);
                 if (s.equalExceptTime(state2)) {
+                    ++numConflicts;
+                }
+
+                if(annotation.conVV.count(s.vertex_id) &&
+                    annotation.conVV.at(s.vertex_id).count(state2.vertex_id)){
                     ++numConflicts;
                 }
             }
@@ -206,8 +213,36 @@ public:
             if (i != m_agentIdx && !solution[i].states.empty()) {
                 State s2a = getState(i, solution, s1a.time);
                 State s2b = getState(i, solution, s1b.time);
-                if (s1a.equalExceptTime(s2b) && s1b.equalExceptTime(s2a)) {
-                    ++numConflicts;
+
+                bool agent1_is_moving = (s1a.vertex_id != s1b.vertex_id);
+                bool agent2_is_moving = (s2a.vertex_id != s2b.vertex_id);
+
+                if (agent1_is_moving && agent2_is_moving) {
+                    // P5: Classic edge swap
+                    if (s1b.equalExceptTime(s2a) && s1a.equalExceptTime(s2b)) {
+                        ++numConflicts;
+                    }
+
+                    // P7: conEE
+                    int e1_id = graph.getEdgeId(s1a.vertex_id, s1b.vertex_id);
+                    int e2_id = graph.getEdgeId(s2a.vertex_id, s2b.vertex_id);
+                    if (e1_id != -1 && e2_id != -1 && e1_id != e2_id) {
+                        if (annotation.conEE.count(e1_id) && annotation.conEE.at(e1_id).count(e2_id)) {
+                            ++numConflicts;
+                        }
+                    }
+                } else if (agent1_is_moving && !agent2_is_moving) {
+                    // P8: conEV (agent 1 moves, agent 2 waits)
+                    int e1_id = graph.getEdgeId(s1a.vertex_id, s1b.vertex_id);
+                    if (e1_id != -1 && annotation.conEV.count(e1_id) && annotation.conEV.at(e1_id).count(s2a.vertex_id)) {
+                        ++numConflicts;
+                    }
+                } else if (!agent1_is_moving && agent2_is_moving) {
+                    // P8: conEV (agent 1 waits, agent 2 moves)
+                    int e2_id = graph.getEdgeId(s2a.vertex_id, s2b.vertex_id);
+                    if (e2_id != -1 && annotation.conEV.count(e2_id) && annotation.conEV.at(e2_id).count(s1a.vertex_id)) {
+                        ++numConflicts;
+                    }
                 }
             }
         }

@@ -55,7 +55,14 @@ int main(int argc, char* argv[]) {
     // GridRoadMapGenerator roadMapGenerator(env, fclCollisionChecker, step_size);
     SPARSRoadMapGenerator roadMapGenerator(env, fclCollisionChecker);
 
-    Graph environment_graph = roadMapGenerator.createRoadMap();
+    Graph environment_graph;
+    try {
+        environment_graph = roadMapGenerator.createRoadMap();
+    } catch (const std::runtime_error& e) {
+        std::cerr << "\n!!! Roadmap olusturma basarisiz !!!\n" << e.what() << std::endl;
+        return 1;
+    }
+
     environment_graph.saveToCSV("vertices.csv", "edges.csv");
 
     std::cout << "Dünya min : " << env.world_min.transpose() << "\n";

@@ -160,15 +160,22 @@ private:
 
     void connectAgents(Graph& graph) {
         for (const auto& agent : env.agents) {
-            auto s = connectPoint(agent.start, graph);
-            auto g = connectPoint(agent.goal,  graph);
-            graph.start_vertices.push_back(s);
-            graph.goal_vertices.push_back(g);
+            int start_id = connectPoint(agent.start, graph);
+            if (start_id < 0) {
+                throw std::runtime_error("Ajan " + std::to_string(agent.id) + " baslangic noktasi roadmape baglanamadi!");
+            }
+            int goal_id = connectPoint(agent.goal, graph);
+            if (goal_id < 0) {
+                throw std::runtime_error("Ajan " + std::to_string(agent.id) + " hedef noktasi roadmape baglanamadi!");
+            }
+            graph.start_vertices.push_back(start_id);
+            graph.goal_vertices.push_back(goal_id);
         }
     }
 
     // Makale Section IV: "connect to up to six neighbors within a search radius
     //                     if the edge could be traversed without collision"
+    // Başarı durumunda vertex ID'si, başarısızlıkta -1 döndürür.
     int connectPoint(const Eigen::Vector3d& point, Graph& graph) {
         int id = graph.addVertex(point);
         double search_radius = computeSearchRadius();
@@ -190,11 +197,35 @@ private:
             connected++;
         }
 
-        if (connected == 0)
+        if (connected == 0) {
+            // Fallback: Yarıçap içinde düğüm bulunamazsa, en yakın çarpışmasız
+            // komşuyu bul ve ona bağlan. Bu, SPARS grafiğinin yerel olarak çok
+            // seyrek olduğu durumlarda bağlantı kopmasını önleyen pragmatik bir çözümdür.
             std::cerr << "Uyari: [" << point.transpose()
-                      << "] noktasi roadmap'e baglanamiyor! "
-                      << "Search radius: " << search_radius << "\n";
+                      << "] noktasi icin search_radius (" << search_radius
+                      << ") icinde komsu bulunamadi. Fallback: en yakin komsu araniyor.\n";
 
-        return id;
+            std::pair<double, int> best_candidate = {std::numeric_limits<double>::max(), -1};
+            for (const auto& v : graph.getVertices()) {
+                if (v.id == id) continue;
+                double dist = (v.pos - point).norm();
+                if (dist < best_candidate.first && collisionChecker.isEdgeFree(point, v.pos)) {
+                    best_candidate = {dist, v.id};
+                }
+            }
+
+            if (best_candidate.second != -1) {
+                graph.addEdge(id, best_candidate.second);
+                connected++;
+            }
+        }
+
+        if (connected == 0) { // Fallback'ten sonra tekrar kontrol et
+            std::cerr << "HATA: [" << point.transpose()
+                      << "] noktasi roadmap'e hicbir sekilde baglanamiyor!\n";
+            // Bu noktayı izole bırakmak yerine, başarısızlığı bildir.
+            return -1;
+        }
+        return id; // Başarılı bağlantı
     }
 };

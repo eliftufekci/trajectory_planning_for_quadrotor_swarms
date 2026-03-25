@@ -1,0 +1,32 @@
+# Environment 7
+# Zigzag koridor - robotlar dar gecislerde karsilasir
+world_bounds:
+    min: [0.0, 0.0, 0.0]
+    max: [8.0, 4.0, 1.0]
+
+obstacles:
+  # Zigzag duvarlari
+  - min: [1.5, 1.5, 0.0]
+    max: [2.5, 4.0, 1.0]
+  - min: [3.5, 0.0, 0.0]
+    max: [4.5, 2.5, 1.0]
+  - min: [5.5, 1.5, 0.0]
+    max: [6.5, 4.0, 1.0]
+  # Ust ve alt sinir engelleri
+  - min: [0.0, 3.2, 0.0]
+    max: [8.0, 4.0, 1.0]
+  - min: [0.0, 0.0, 0.0]
+    max: [8.0, 0.8, 1.0]
+
+agents:
+  - id: 0
+    start: [0.5, 2.0, 0.5]
+    goal:  [7.5, 2.0, 0.5]
+
+  - id: 1
+    start: [7.5, 2.0, 0.5]
+    goal:  [0.5, 2.0, 0.5]
+
+  - id: 2
+    start: [0.5, 1.2, 0.5]
+    goal:  [7.5, 1.2, 0.5]
