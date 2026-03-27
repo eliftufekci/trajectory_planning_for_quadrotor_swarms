@@ -7,4 +7,5 @@ struct DiscreteSchedule{
 
     DiscreteSchedule( const std::vector<std::vector<int>>& waypoint, int K)
         : waypoint(waypoint), K(K) {}
+    
 };

@@ -2,8 +2,8 @@
 #include <vector>
 
 struct SafePolyhedron{
-    std::vector<HyperPlane> planes;
+    std::vector<std::vector<std::vector<HyperPlane>>> planes;
 
-    SafePolyhedron(std::vector<HyperPlane> planes) : planes(planes){}
+    SafePolyhedron(std::vector<std::vector<std::vector<HyperPlane>>> planes) : planes(planes){}
     
 };
