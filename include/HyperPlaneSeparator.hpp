@@ -5,6 +5,7 @@
 #include "MAPFCTypes.hpp"
 #include "TrajectoryOptimizationTypes.hpp"
 #include <Eigen/Dense>
+#include <eigen3/Eigen/src/Core/DiagonalMatrix.h>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <eigen3/Eigen/src/Core/util/Constants.h>
 #include <vector>
@@ -33,7 +34,7 @@ public:
                     Eigen::MatrixXd segment_j(3, 2);
                     segment_j << graph.getVertex(waypoint[j][k]).pos, graph.getVertex(waypoint[j][k+1]).pos;
 
-                    if(isCollide(segment_i, segment_j)){
+                    if(sweptVolumesCollide(segment_i, segment_j)){
                         HyperPlane plane = computeSVM(segment_i, segment_j);
                         planes[i][k].push_back(plane);
                         // Karşıt düzlemi de diğer ajan için ekle
@@ -51,11 +52,62 @@ private:
     const Graph& graph;
     const DiscreteSchedule& discreteSchedule;
     const RobotModel& robotModel;
+
+    std::tuple<Eigen::Vector3d, Eigen::Vector3d> find_closest_points(const Eigen::MatrixXd& s1, const Eigen::MatrixXd& s2) {
+        Eigen::Vector3d p1 = s1.col(0);
+        Eigen::Vector3d p2 = s1.col(1);
+        Eigen::Vector3d p3 = s2.col(0);
+        Eigen::Vector3d p4 = s2.col(1);
+        
+        Eigen::Vector3d u = p2 - p1;
+        Eigen::Vector3d v = p4 - p3;
+        Eigen::Vector3d w = p1 - p3;
+
+        double a = u.squaredNorm();
+        double b = u.dot(v);
+        double c = v.squaredNorm();
+        double d = u.dot(w);
+        double e = v.dot(w);
+
+        double denom = a*c - b*b; // paralel mi
+        double s = 0.0, t = 0.0;
+
+        if (a < 1e-8 && c < 1e-8) {
+            s = 0.0;
+            t = 0.0;
+        } else if (a < 1e-8) {
+            s = 0.0;
+            t = std::clamp(e / c, 0.0, 1.0);
+        } else if (c < 1e-8) {
+            t = 0.0;
+            s = std::clamp(-d / a, 0.0, 1.0);
+        } else {
+            if (denom > 1e-8) {
+                s = std::clamp((b*e - c*d) / denom, 0.0, 1.0);
+            } else {
+                s = 0.0; // Paralellerse s'i sabitleyip t'yi buluyoruz
+            }
+
+            t = (b*s + e) / c;
+
+            if (t < 0.0) {
+                t = 0.0;
+                s = std::clamp(-d / a, 0.0, 1.0);
+            } else if (t > 1.0) {
+                t = 1.0;
+                s = std::clamp((b - d) / a, 0.0, 1.0);
+            }
+        }
+
+        Eigen::Vector3d point1 = p1 + s*u;
+        Eigen::Vector3d point2 = p3 + t*v;
+
+        return {point1, point2};
+    }
     
-    // TODO
-    bool isCollide(Eigen::Vector3d p, Eigen::Vector3d q){
-        Eigen::Vector3d diff = E_diag * (p - q);
-        return diff.norm() < 2.0;
+    bool sweptVolumesCollide(const Eigen::MatrixXd& segment_i, const Eigen::MatrixXd& segment_j) {
+        auto [p_i, p_j] = find_closest_points(segment_i, segment_j);
+        return robotModel.collides(p_i, p_j);
     }
     
     // İki nokta kümesini (burada iki segmentin uç noktaları) ayıran
@@ -86,11 +138,14 @@ private:
 
         // 3. Kısıt Matrisi (A): l <= Ax <= u
         // Her satır bir kısıtı temsil eder: p'.n - d
-        Eigen::MatrixXd A(n_constraints, n_vars);
-        A.row(0) << segment_i.col(0).transpose(), -1;
-        A.row(1) << segment_i.col(1).transpose(), -1;
-        A.row(2) << segment_j.col(0).transpose(), -1;
-        A.row(3) << segment_j.col(1).transpose(), -1; 
+        Eigen::MatrixXd A_dense(n_constraints, n_vars);
+        A_dense.row(0) << segment_i.col(0).transpose(), -1;
+        A_dense.row(1) << segment_i.col(1).transpose(), -1;
+        A_dense.row(2) << segment_j.col(0).transpose(), -1;
+        A_dense.row(3) << segment_j.col(1).transpose(), -1; 
+
+        Eigen::SparseMatrix<double> A = A_dense.sparseView();
+
 
         // 4. Kısıt Sınırları (l ve u)
         // Ajan i'nin noktaları için: Alt sınır (l) = 1, Üst sınır (u) = sonsuz
@@ -114,7 +169,7 @@ private:
         if (!solver.data()->setUpperBound(u)) throw std::runtime_error("SVM QP setup failed: u");
                                 
         if (!solver.initSolver()) throw std::runtime_error("SVM QP init failed");
-        solver.solveProblem()
+        solver.solveProblem();
 
         Eigen::VectorXd solution = solver.getSolution();
 
@@ -125,7 +180,14 @@ private:
         // HyperPlane struct'ı normalize edilmiş normal bekliyor.
         // Eğer normal'i normalize edersek, d'yi de aynı oranda ölçeklemeliyiz.
         double norm_val = normal.norm();
+        double ellipsoid_offset = calculate_offset(normal);
         
-        return HyperPlane(normal / norm_val, d_val / norm_val);
+        return HyperPlane(normal / norm_val, d_val / norm_val, ellipsoid_offset);
+    }
+
+    double calculate_offset(Eigen::Vector3d normal_vector){
+        Eigen::DiagonalMatrix<double> E = Eigen::DiagonalMatrix<double>(robotModel.rx, robotModel.ry, robotModel.rz);
+        double ellipsoid_offset = E*normal_vector.norm();
+        return ellipsoid_offset;
     }
 };
