@@ -34,12 +34,25 @@ public:
                     Eigen::MatrixXd segment_j(3, 2);
                     segment_j << graph.getVertex(waypoint[j][k]).pos, graph.getVertex(waypoint[j][k+1]).pos;
 
-                    if(sweptVolumesCollide(segment_i, segment_j)){
-                        HyperPlane plane = computeSVM(segment_i, segment_j);
-                        planes[i][k].push_back(plane);
-                        // Karşıt düzlemi de diğer ajan için ekle
-                        planes[j][k].push_back(HyperPlane(-plane.normal_vector, -plane.d));
-                    }
+                    HyperPlane plane = computeSVM(segment_i, segment_j);
+                    planes[i][k].push_back(plane);
+                    // Karşıt düzlemi de diğer ajan için ekle
+                    planes[j][k].push_back(HyperPlane(-plane.normal_vector, -plane.d, plane.ellipsoid_offset));
+                    
+                }
+            }
+        }
+
+        for(int k=0; k < discreteSchedule.K-1; k++){
+            for(int i=0; i < waypoint.size(); i++){ // robot i
+                for(auto& obstacle : environment.obstacles){
+                    Eigen::MatrixXd segment_i(3, 2);
+                        segment_i << graph.getVertex(waypoint[i][k]).pos, graph.getVertex(waypoint[i][k+1]).pos;
+                    
+                    Eigen::MatrixXd obstacle_matrix = getObstacleCorners(obstacle.min, obstacle.max);
+                    
+                    HyperPlane plane = computeSVM(segment_i, obstacle_matrix);
+                    planes[i][k].push_back(plane);
                 }
             }
         }
@@ -52,6 +65,7 @@ private:
     const Graph& graph;
     const DiscreteSchedule& discreteSchedule;
     const RobotModel& robotModel;
+    const Environment& environment;
 
     std::tuple<Eigen::Vector3d, Eigen::Vector3d> find_closest_points(const Eigen::MatrixXd& s1, const Eigen::MatrixXd& s2) {
         Eigen::Vector3d p1 = s1.col(0);
@@ -108,6 +122,22 @@ private:
     bool sweptVolumesCollide(const Eigen::MatrixXd& segment_i, const Eigen::MatrixXd& segment_j) {
         auto [p_i, p_j] = find_closest_points(segment_i, segment_j);
         return robotModel.collides(p_i, p_j);
+    }
+
+    Eigen::MatrixXd getObstacleCorners(Eigen::Vector3d min, Eigen::Vector3d max){
+        Eigen::MatrixXd corners(3, 8);
+        
+        corners.col(0) << min.x(), min.y(), min.z();
+        corners.col(1) << max.x(), min.y(), min.z();
+        corners.col(2) << min.x(), max.y(), min.z();
+        corners.col(3) << max.x(), max.y(), min.z();
+        
+        corners.col(4) << min.x(), min.y(), max.z();
+        corners.col(5) << max.x(), min.y(), max.z();
+        corners.col(6) << min.x(), max.y(), max.z();
+        corners.col(7) << max.x(), max.y(), max.z();
+        
+        return corners;
     }
     
     // İki nokta kümesini (burada iki segmentin uç noktaları) ayıran
@@ -180,14 +210,16 @@ private:
         // HyperPlane struct'ı normalize edilmiş normal bekliyor.
         // Eğer normal'i normalize edersek, d'yi de aynı oranda ölçeklemeliyiz.
         double norm_val = normal.norm();
-        double ellipsoid_offset = calculate_offset(normal);
+        double ellipsoid_offset = calculate_offset(normal / norm_val);
         
         return HyperPlane(normal / norm_val, d_val / norm_val, ellipsoid_offset);
     }
 
     double calculate_offset(Eigen::Vector3d normal_vector){
-        Eigen::DiagonalMatrix<double> E = Eigen::DiagonalMatrix<double>(robotModel.rx, robotModel.ry, robotModel.rz);
-        double ellipsoid_offset = E*normal_vector.norm();
-        return ellipsoid_offset;
+        Eigen::Vector3d E_n(robotModel.rx * normalized_n.x(),
+                        robotModel.ry * normalized_n.y(),
+                        robotModel.rz * normalized_n.z());
+        return E_n.norm();
+
     }
 };
