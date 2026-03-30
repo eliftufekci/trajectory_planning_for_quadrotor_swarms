@@ -1,0 +1,18 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake Build",
+            "type": "shell",
+            "command": "cmake --build build", // CMake ile derleme komutu
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc" // Derleme hatalarını yakalamak için
+            ],
+            "detail": "CMake ile projeyi derler"
+        }
+    ]
+}

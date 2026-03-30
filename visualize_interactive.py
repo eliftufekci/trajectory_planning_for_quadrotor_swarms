@@ -53,6 +53,22 @@ def load_paths_csv(path):
             paths.setdefault(agent_id, []).append(pos)
     return paths
 
+
+def load_hyperplanes_csv(path):
+    """hyperplanes.csv -> [{'robot_id':.., 'timestep':.., 'n':.., 'd':..}, ...]"""
+    planes = []
+    if not os.path.exists(path):
+        return planes
+    with open(path) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            planes.append({
+                "robot_id": int(row["robot_id"]),
+                "timestep": int(row["timestep"]),
+                "n": np.array([float(row["nx"]), float(row["ny"]), float(row["nz"])]),
+                "d": float(row["d"]),
+            })
+    return planes
 # ─────────────────────────────────────────────
 #  AABB → 8 köşe noktası
 # ─────────────────────────────────────────────
@@ -115,6 +131,46 @@ def wireframe_trace(mn, mx, color="gray", width=1.5):
         hoverinfo="skip",
     )
 
+# ─────────────────────────────────────────────
+#  Hyperplane (n,d) → Surface trace
+# ─────────────────────────────────────────────
+def hyperplane_trace(plane_data, size=2.0, color='cyan', opacity=0.3, visible=False):
+    n = plane_data['n']
+    d = plane_data['d']
+
+    # Düzlemin orijine en yakın noktası
+    p0 = d * n
+
+    # Düzlem için bir ortonormal baz oluştur
+    if abs(n[0]) < 0.9:
+        a = np.array([1, 0, 0])
+    else:
+        a = np.array([0, 1, 0])
+
+    b1 = np.cross(n, a)
+    b1 = b1 / np.linalg.norm(b1)
+    b2 = np.cross(n, b1)
+
+    # Bir grid oluştur
+    u = np.linspace(-size, size, 5)
+    v = np.linspace(-size, size, 5)
+    u, v = np.meshgrid(u, v)
+
+    # Düzlem üzerindeki noktaları hesapla: P(u,v) = p0 + u*b1 + v*b2
+    x = p0[0] + u * b1[0] + v * b2[0]
+    y = p0[1] + u * b1[1] + v * b2[1]
+    z = p0[2] + u * b1[2] + v * b2[2]
+
+    return go.Surface(
+        x=x, y=y, z=z,
+        colorscale=[[0, color], [1, color]],
+        showscale=False,
+        opacity=opacity,
+        name=f"Plane R{plane_data['robot_id']} T{plane_data['timestep']}",
+        hoverinfo="name",
+        visible=visible,
+        lighting=dict(ambient=0.8, diffuse=0.2)
+    )
 
 # ─────────────────────────────────────────────
 #  Renk paleti
@@ -155,7 +211,7 @@ def axis_style(title, axis_range):
 # ─────────────────────────────────────────────
 #  Ana figür
 # ─────────────────────────────────────────────
-def build_figure(env, vertices, edges, paths):
+def build_figure(env, vertices, edges, paths, hyperplanes):
     fig  = go.Figure()
     wmin = env["world_min"]
     wmax = env["world_max"]
@@ -275,6 +331,49 @@ def build_figure(env, vertices, edges, paths):
             customdata=np.arange(len(path_points)).reshape(-1,1)
         ))
 
+    # ── Hiper Düzlemler (Hyperplanes) ────────────────────────────────
+    if hyperplanes:
+        for p_data in hyperplanes:
+            # Karmaşayı önlemek için varsayılan olarak sadece T=0'ı göster
+            is_visible = (p_data['timestep'] == 0)
+            fig.add_trace(hyperplane_trace(
+                p_data,
+                size=1.5,
+                color='rgba(142, 68, 173, 0.5)', # Mor tonu
+                opacity=0.4,
+                visible=is_visible
+            ))
+
+    # ── İnteraktif Butonlar (Hiper düzlemler için) ───────────────────
+    if hyperplanes:
+        surface_indices = [i for i, trace in enumerate(fig.data) if isinstance(trace, go.Surface)]
+
+        visibility_hide = [False] * len(surface_indices)
+        visibility_t0   = [(fig.data[i].name.endswith("T0")) for i in surface_indices]
+        visibility_all  = [True] * len(surface_indices)
+
+        updatemenus = [
+            dict(
+                type="buttons",
+                direction="down",
+                active=1, # Varsayılan olarak "T=0 Göster" aktif
+                x=0.0, xanchor="left",
+                y=1.0, yanchor="top",
+                pad={"r": 10, "t": 10},
+                buttons=list([
+                    dict(label="Düzlemleri Gizle",
+                         method="restyle",
+                         args=[{"visible": visibility_hide}, surface_indices]),
+                    dict(label="T=0 Düzlemlerini Göster",
+                         method="restyle",
+                         args=[{"visible": visibility_t0}, surface_indices]),
+                    dict(label="Tüm Düzlemleri Göster",
+                         method="restyle",
+                         args=[{"visible": visibility_all}, surface_indices]),
+                ]),
+            )
+        ]
+
     # ── Layout ───────────────────────────────────────────────────────
     margin = 1.0
     fig.update_layout(
@@ -302,6 +401,7 @@ def build_figure(env, vertices, edges, paths):
             zaxis=axis_style("Z (m)", [wmin[2]-margin, wmax[2]+margin]),
             camera=dict(eye=dict(x=1.5, y=-1.8, z=1.2)),
         ),
+        updatemenus=updatemenus if hyperplanes else None
     )
 
     return fig
@@ -318,6 +418,7 @@ def main():
     vert_csv = os.path.join(build, "vertices.csv")
     edge_csv = os.path.join(build, "edges.csv")
     paths_csv = os.path.join(build, "paths.csv")
+    hyperplanes_csv = os.path.join(build, "hyperplanes.csv")
 
     if not os.path.exists(env_csv):
         print("HATA: environment_data.csv bulunamadı — önce C++ programını çalıştır.")
@@ -328,16 +429,19 @@ def main():
     vertices = load_vertices_csv(vert_csv) if os.path.exists(vert_csv) else {} 
     edges    = load_edges_csv(edge_csv)    if os.path.exists(edge_csv) else [] 
     paths    = load_paths_csv(paths_csv)
+    hyperplanes = load_hyperplanes_csv(hyperplanes_csv)
 
     print(f"  Engel  : {len(env['obstacles'])}")
     print(f"  Agent  : {len(env['starts'])}")
     print(f"  Vertex : {len(vertices)}")
     print(f"  Edge   : {len(edges)}")
+    if hyperplanes:
+        print(f"  Düzlem : {len(hyperplanes)}")
     if paths:
         print(f"  Yol    : {len(paths)}")
 
-    fig = build_figure(env, vertices, edges, paths)
-    out_filename = "solution_interactive.html" if paths else "environment_interactive.html"
+    fig = build_figure(env, vertices, edges, paths, hyperplanes)
+    out_filename = "solution_with_planes.html" if paths else "environment_interactive.html"
     out = os.path.join(base, out_filename)
     fig.write_html(out, include_plotlyjs="cdn")
 

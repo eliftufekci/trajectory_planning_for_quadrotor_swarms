@@ -3,10 +3,12 @@
 #include "Environment.hpp"
 #include "FCLCollisionChecker.hpp"
 #include "Graph.hpp"
+#include "HyperPlaneSeparator.hpp"
 #include "RobotModel.hpp"
 #include "GridRoadMapGenerator.hpp"
 #include "SPARSRoadMapGenerator.hpp"
 #include "FCLConflictAnnotation.hpp"
+#include "SafePolyhedron.hpp"
 #include "SweptConflictAnnotation.hpp"
 #include "MAPFCSolver.hpp"
 
@@ -38,6 +40,28 @@ void saveOctreeCSV(const Environment& env, const std::string& path) {
         }
     }
     std::cout << "Kaydedildi: " << path << " (" << count << " voxel)\n";
+}
+
+void saveSafePolyhedronCSV(const SafePolyhedron& poly, const std::string& path) {
+    std::ofstream f(path);
+    if (!f) {
+        std::cerr << "HATA: Güvenli Polyhedron dosyası açılamadı: " << path << std::endl;
+        return;
+    }
+    f << "robot_id,timestep,nx,ny,nz,d,ellipsoid_offset\n";
+    for (size_t i = 0; i < poly.planes.size(); ++i) {
+        for (size_t k = 0; k < poly.planes[i].size(); ++k) {
+            for (const auto& plane : poly.planes[i][k]) {
+                f << i << "," << k << ","
+                  << plane.normal_vector.x() << ","
+                  << plane.normal_vector.y() << ","
+                  << plane.normal_vector.z() << ","
+                  << plane.d << ","
+                  << plane.ellipsoid_offset << "\n";
+            }
+        }
+    }
+    std::cout << "Kaydedildi: " << path << "\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -92,7 +116,13 @@ int main(int argc, char* argv[]) {
     std::cout << "\n=== Multi-Agent Path Finding (ECBS) ===\n";
     // Çözücüyü swept_conflict_annotation ile başlatıyoruz (fcl de kullanabilirsiniz)
     MPAFCSolver solver(environment_graph, swept_conflict_annotation);
+    std::cout << "mapfc solver worked succesfully\n";
     DiscreteSchedule schedule = solver.solve();
+
+    HyperPlaneSeparator hyperPlaneSeparator(environment_graph, robot, schedule, env);
+    SafePolyhedron safePolyhedron = hyperPlaneSeparator.compute();
+    saveSafePolyhedronCSV(safePolyhedron, "hyperplanes.csv");
+
 
     std::cout << "Makespan (K): " << schedule.K << "\n";
     for (size_t i = 0; i < schedule.waypoint.size(); ++i) {

@@ -125,11 +125,11 @@ private:
     void connectAgents(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap)
     {
         for (const auto& agent : env.agents) {
-            int start_id = connectPoint(agent.start, graph);
+            int start_id = connectPoint(agent.start, graph, indexMap);
             if (start_id < 0) {
                 throw std::runtime_error("Ajan " + std::to_string(agent.id) + " baslangic noktasi roadmape baglanamadi!");
             }
-            int goal_id = connectPoint(agent.goal, graph);
+            int goal_id = connectPoint(agent.goal, graph, indexMap);
             if (goal_id < 0) {
                 throw std::runtime_error("Ajan " + std::to_string(agent.id) + " hedef noktasi roadmape baglanamadi!");
             }

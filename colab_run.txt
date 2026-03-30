@@ -1,5 +1,9 @@
 git clone -b roadmap_generation https://github.com/eliftufekci/trajectory_planning_for_quadrotor_swarms.git
 
+OSQP_EIGEN_DIR="/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/libs/osqp-eigen"
+echo "Cloning osqp-eigen..."
+git clone --depth 1 https://github.com/robotology/osqp-eigen.git "$OSQP_EIGEN_DIR"
+
 
 LIB_DIR="/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/libs/libMultiRobotPlanning"
 echo "Cloning libMultiRobotPlanning..."
@@ -14,17 +18,30 @@ rm -rf "$LIB_DIR/.github"
 rm -f  "$LIB_DIR/CMakeLists.txt" "$LIB_DIR/.clang-format" "$LIB_DIR/.gitignore"
 
 sudo apt-get update
+# libosqp-dev paketi eski Ubuntu dağıtımlarında (örn. 18.04) bulunmayabilir.
+# Bu yüzden OSQP'yi kaynaktan derlemek daha güvenilir bir yöntemdir.
 sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev libcdd-dev libfcl-dev libompl-dev libboost-all-dev
 
+# --- OSQP'yi kaynaktan derle ve kur ---
+(
+    echo "Building and installing OSQP from source..."
+    cd /tmp
+    git clone --recursive https://github.com/osqp/osqp.git
+    cd osqp
+    mkdir build && cd build
+    cmake -G "Unix Makefiles" -DBUILD_SHARED_LIBS=ON ..
+    make -j$(nproc)
+    sudo make install
+)
 
 mkdir -p /content/trajectory_planning_for_quadrotor_swarms/build
 
 cd /content/trajectory_planning_for_quadrotor_swarms/build
 
-cmake ..
+cmake .. -DOSQP_EIGEN_OSQP_IS_V1=ON
 
 make
 
-./env_test ../config/environment.yaml
+./env_test ../config/environment.yaml || echo "C++ programı bir hatayla sonlandı, yine de görselleştirme deneniyor."
 
-python visualize.py
+python visualize_interactive.py

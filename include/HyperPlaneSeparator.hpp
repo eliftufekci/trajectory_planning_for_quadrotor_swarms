@@ -1,20 +1,20 @@
 #pragma once
 #include "DiscreteSchedule.hpp"
+#include "Environment.hpp"
 #include "Graph.hpp"
 #include "HyperPlane.hpp"
 #include "MAPFCTypes.hpp"
-#include "TrajectoryOptimizationTypes.hpp"
+#include "SafePolyhedron.hpp"
 #include <Eigen/Dense>
-#include <eigen3/Eigen/src/Core/DiagonalMatrix.h>
-#include <eigen3/Eigen/src/Core/Matrix.h>
-#include <eigen3/Eigen/src/Core/util/Constants.h>
+#include <Eigen/Sparse>
 #include <vector>
+#include <OsqpEigen/Solver.hpp>
 
 class HyperPlaneSeparator{
 public:
     
-    HyperPlaneSeparator(const Graph& graph, const RobotModel& robotModel, const DiscreteSchedule& discreteSchedule)
-        : graph(graph), discreteSchedule(discreteSchedule), robotModel(robotModel) {}
+    HyperPlaneSeparator(const Graph& graph, const RobotModel& robotModel, const DiscreteSchedule& discreteSchedule, const Environment& environment)
+        : graph(graph), discreteSchedule(discreteSchedule), robotModel(robotModel), environment(environment) {}
 
     // Tüm schedule için tüm (i,j,k) hyperplane'lerini hesapla
     SafePolyhedron compute(){
@@ -25,29 +25,28 @@ public:
         }
 
         // Her `(i, j, k)` üçlüsü için bir `(n, d)` çifti: robot `i` timestep `k`'da `n^T x >= d` tarafında, robot `j` `n^T x <= d` tarafında kalacak.
-        for(int k=0; k < discreteSchedule.K-1; k++){
+        for(int k=0; k < discreteSchedule.K; k++){
             for(int i=0; i < waypoint.size(); i++){ // robot i
                 for(int j=i+1; j< waypoint.size(); j++){ // robot j                    
                     Eigen::MatrixXd segment_i(3, 2);
-                    segment_i << graph.getVertex(waypoint[i][k]).pos, graph.getVertex(waypoint[i][k+1]).pos;
+                    segment_i << graph.getVertex(getWaypoint(i, k)).pos, graph.getVertex(getWaypoint(i, k+1)).pos;
                     
                     Eigen::MatrixXd segment_j(3, 2);
-                    segment_j << graph.getVertex(waypoint[j][k]).pos, graph.getVertex(waypoint[j][k+1]).pos;
+                    segment_j << graph.getVertex(getWaypoint(j, k)).pos, graph.getVertex(getWaypoint(j, k+1)).pos;
 
                     HyperPlane plane = computeSVM(segment_i, segment_j);
                     planes[i][k].push_back(plane);
                     // Karşıt düzlemi de diğer ajan için ekle
                     planes[j][k].push_back(HyperPlane(-plane.normal_vector, -plane.d, plane.ellipsoid_offset));
-                    
                 }
             }
         }
 
-        for(int k=0; k < discreteSchedule.K-1; k++){
+        for(int k=0; k < discreteSchedule.K; k++){
             for(int i=0; i < waypoint.size(); i++){ // robot i
                 for(auto& obstacle : environment.obstacles){
                     Eigen::MatrixXd segment_i(3, 2);
-                        segment_i << graph.getVertex(waypoint[i][k]).pos, graph.getVertex(waypoint[i][k+1]).pos;
+                    segment_i << graph.getVertex(getWaypoint(i, k)).pos, graph.getVertex(getWaypoint(i, k+1)).pos;
                     
                     Eigen::MatrixXd obstacle_matrix = getObstacleCorners(obstacle.min, obstacle.max);
                     
@@ -66,6 +65,15 @@ private:
     const DiscreteSchedule& discreteSchedule;
     const RobotModel& robotModel;
     const Environment& environment;
+
+    int getWaypoint(size_t agent_idx, int time) const {
+        const auto& path = discreteSchedule.waypoint[agent_idx];
+        if (time < path.size()) {
+            return path[time];
+        }
+        // Ajan hedefine ulaştıysa, son konumunda bekler.
+        return path.back();
+    }
 
     std::tuple<Eigen::Vector3d, Eigen::Vector3d> find_closest_points(const Eigen::MatrixXd& s1, const Eigen::MatrixXd& s2) {
         Eigen::Vector3d p1 = s1.col(0);
@@ -139,86 +147,96 @@ private:
         
         return corners;
     }
-    
+
     // İki nokta kümesini (burada iki segmentin uç noktaları) ayıran
     // maksimum marjlı hiperdüzlemi bulan SVM (QP) çözücü.    
-    HyperPlane computeSVM( Eigen::MatrixXd segment_i, Eigen::MatrixXd segment_j){
+    HyperPlane computeSVM( const Eigen::MatrixXd& points_i, const Eigen::MatrixXd& points_j){
+        const int m_i = points_i.cols();
+        const int m_j = points_j.cols();
+        const int n_vars = 4; // [nx, ny, nz, d]
+        const int n_constraints = m_i + m_j;
 
-        // QP Problemi:
-        // minimize   0.5 * n'.n
-        // subject to n'.p_i - d >= 1   (for p_i in segment_i endpoints)
-        //            n'.p_j - d <= -1  (for p_j in segment_j endpoints)
-        //
-        // Değişkenler (x): [n_x, n_y, n_z, d] (n=4)
-        // Kısıtlar (m): 4 tane (her segmentin iki ucu için birer tane)
+        bool is_obstacle = (points_j.cols() > 2);
 
-        int n_vars = 4;
-        int n_constraints = 4;
-
-        // 1. Hessian Matrisi (P): minimize 0.5 * x'Px
-        // Sadece normal vektörün (ilk 3 değişken) karesini minimize ediyoruz.
+        // --- 1. Hessian Matrisi (P): minimize 0.5 * x'Px ---
         Eigen::SparseMatrix<double> P(n_vars, n_vars);
-        P.insert(0, 0) = robotModel.rx * robotModel.rx;
-        P.insert(1, 1) = robotModel.ry * robotModel.ry;
-        P.insert(2, 2) = robotModel.rz * robotModel.rz;
-        P.insert(3, 3) = 0; // Beta için 0 bıraktık
+        if(is_obstacle){
+            // Engel durumunda, robotun yarıçapını kullanarak marjı maksimize et
+            P.insert(0, 0) = robotModel.radius * robotModel.radius;
+            P.insert(1, 1) = robotModel.radius * robotModel.radius;
+            P.insert(2, 2) = robotModel.radius * robotModel.radius;
+        } else {
+            // Robot-robot durumunda, elipsoid yarıçaplarını kullan
+            P.insert(0, 0) = robotModel.rx * robotModel.rx;
+            P.insert(1, 1) = robotModel.ry * robotModel.ry;
+            P.insert(2, 2) = robotModel.rz * robotModel.rz;
+        }
+        // P.insert(3, 3) = 0; // d'nin karesi minimize edilmiyor
 
-        // 2. Gradyan Vektörü (q): q'x terimi yok.
+        // --- 2. Gradyan Vektörü (q): q'x terimi yok ---
         Eigen::VectorXd q = Eigen::VectorXd::Zero(n_vars);
 
-        // 3. Kısıt Matrisi (A): l <= Ax <= u
-        // Her satır bir kısıtı temsil eder: p'.n - d
+        // --- 3. Kısıt Matrisi (A): l <= Ax <= u ---
         Eigen::MatrixXd A_dense(n_constraints, n_vars);
-        A_dense.row(0) << segment_i.col(0).transpose(), -1;
-        A_dense.row(1) << segment_i.col(1).transpose(), -1;
-        A_dense.row(2) << segment_j.col(0).transpose(), -1;
-        A_dense.row(3) << segment_j.col(1).transpose(), -1; 
-
+        // points_i için kısıtlar: n'.p_i - d >= 1
+        for (int i = 0; i < m_i; ++i) {
+            A_dense.row(i) << points_i.col(i).transpose(), -1;
+        }
+        // points_j için kısıtlar: n'.p_j - d <= -1
+        for (int j = 0; j < m_j; ++j) {
+            A_dense.row(m_i + j) << points_j.col(j).transpose(), -1;
+        }
         Eigen::SparseMatrix<double> A = A_dense.sparseView();
 
-
-        // 4. Kısıt Sınırları (l ve u)
-        // Ajan i'nin noktaları için: Alt sınır (l) = 1, Üst sınır (u) = sonsuz
-        // Ajan j'nin noktaları için: Alt sınır (l) = -sonsuz, Üst sınır (u) = -1
+        // --- 4. Kısıt Sınırları (l ve u) ---
         Eigen::VectorXd l(n_constraints), u(n_constraints);
         const double inf = std::numeric_limits<double>::infinity();
-        l << 1.0, 1.0, -inf, -inf;
-        u << inf, inf, -1.0, -1.0;
-
         
-        // Solver ayarlama
+        // points_i için: l=1, u=inf
+        l.head(m_i).fill(1.0);
+        u.head(m_i).fill(inf);
+
+        // points_j için: l=-inf, u=-1
+        l.tail(m_j).fill(-inf);
+        u.tail(m_j).fill(-1.0);
+
+        // --- 5. Solver'ı kur ve çöz ---
         OsqpEigen::Solver solver;
         solver.settings()->setVerbosity(false);
         solver.data()->setNumberOfVariables(n_vars);
         solver.data()->setNumberOfConstraints(n_constraints);
 
-        if (!solver.data()->setHessianMatrix(P)) throw std::runtime_error("SVM QP setup failed: P");
-        if (!solver.data()->setGradient(q)) throw std::runtime_error("SVM QP setup failed: q");
-        if (!solver.data()->setLinearConstraintsMatrix(A)) throw std::runtime_error("SVM QP setup failed: A");
-        if (!solver.data()->setLowerBound(l)) throw std::runtime_error("SVM QP setup failed: l");
-        if (!solver.data()->setUpperBound(u)) throw std::runtime_error("SVM QP setup failed: u");
+        if (!solver.data()->setHessianMatrix(P) || !solver.data()->setGradient(q) ||
+            !solver.data()->setLinearConstraintsMatrix(A) ||
+            !solver.data()->setLowerBound(l) || !solver.data()->setUpperBound(u)) {
+            throw std::runtime_error("SVM QP setup failed");
+        }
                                 
         if (!solver.initSolver()) throw std::runtime_error("SVM QP init failed");
         solver.solveProblem();
 
+        // --- 6. Sonucu işle ---
         Eigen::VectorXd solution = solver.getSolution();
-
         Eigen::Vector3d normal = solution.head<3>();
         double d_val = solution(3);
 
-        // Hiperdüzlem denklemi: normal' * x = d_val
-        // HyperPlane struct'ı normalize edilmiş normal bekliyor.
-        // Eğer normal'i normalize edersek, d'yi de aynı oranda ölçeklemeliyiz.
         double norm_val = normal.norm();
+        if (norm_val < 1e-6) {
+            // Çözüm başarısız veya normal vektör sıfır. Bu durum ayrılabilir olmadıklarında olabilir.
+            // Geçici bir çözüm olarak, merkezleri birleştiren vektörü kullanabiliriz.
+            normal = (points_i.rowwise().mean() - points_j.rowwise().mean()).normalized();
+            d_val = normal.dot((points_i.rowwise().mean() + points_j.rowwise().mean()) * 0.5);
+            norm_val = 1.0;
+        }
+
         double ellipsoid_offset = calculate_offset(normal / norm_val);
-        
         return HyperPlane(normal / norm_val, d_val / norm_val, ellipsoid_offset);
     }
 
     double calculate_offset(Eigen::Vector3d normal_vector){
-        Eigen::Vector3d E_n(robotModel.rx * normalized_n.x(),
-                        robotModel.ry * normalized_n.y(),
-                        robotModel.rz * normalized_n.z());
+        Eigen::Vector3d E_n(robotModel.rx * normal_vector.x(),
+                        robotModel.ry * normal_vector.y(),
+                        robotModel.rz * normal_vector.z());
         return E_n.norm();
 
     }
