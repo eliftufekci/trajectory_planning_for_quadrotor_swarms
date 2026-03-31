@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/env_test", // Derlenen çalıştırılabilir dosyanızın yolu
-            "args": ["${workspaceFolder}/config/environment7.yaml"], // C++ programınıza iletilen argümanlar
+            "args": ["${workspaceFolder}/config/environment8.yaml"], // C++ programınıza iletilen argümanlar
             "stopAtEntry": false, // Programın başlangıcında durup durmayacağı
             "cwd": "${workspaceFolder}/build", // Çalışma dizini
             "environment": [],

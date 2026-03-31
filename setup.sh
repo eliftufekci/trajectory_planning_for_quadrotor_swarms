@@ -1,9 +1,6 @@
-git clone -b roadmap_generation https://github.com/eliftufekci/trajectory_planning_for_quadrotor_swarms.git
-
 OSQP_EIGEN_DIR="/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/libs/osqp-eigen"
 echo "Cloning osqp-eigen..."
 git clone --depth 1 https://github.com/robotology/osqp-eigen.git "$OSQP_EIGEN_DIR"
-
 
 LIB_DIR="/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/libs/libMultiRobotPlanning"
 echo "Cloning libMultiRobotPlanning..."
@@ -13,7 +10,7 @@ echo "Cleaning up libMultiRobotPlanning..."
 rm -rf "$LIB_DIR/benchmark"
 rm -rf "$LIB_DIR/doc"
 rm -rf "$LIB_DIR/examples"
-rm -rf "$LIB_DIR/test"
+rm -rf "$LIB_DIR/test"s
 rm -rf "$LIB_DIR/.github"
 rm -f  "$LIB_DIR/CMakeLists.txt" "$LIB_DIR/.clang-format" "$LIB_DIR/.gitignore"
 
@@ -33,15 +30,3 @@ sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev libcdd-dev 
     make -j$(nproc)
     sudo make install
 )
-
-mkdir -p /content/trajectory_planning_for_quadrotor_swarms/build
-
-cd /content/trajectory_planning_for_quadrotor_swarms/build
-
-cmake .. -DOSQP_EIGEN_OSQP_IS_V1=ON
-
-make
-
-./env_test ../config/environment.yaml || echo "C++ programı bir hatayla sonlandı, yine de görselleştirme deneniyor."
-
-python visualize_interactive.py

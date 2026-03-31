@@ -35,22 +35,27 @@ public:
                     segment_j << graph.getVertex(getWaypoint(j, k)).pos, graph.getVertex(getWaypoint(j, k+1)).pos;
 
                     HyperPlane plane = computeSVM(segment_i, segment_j);
+                    plane.separated_from_type = 0; // Robot
+                    plane.separated_from_id = j;
                     planes[i][k].push_back(plane);
                     // Karşıt düzlemi de diğer ajan için ekle
-                    planes[j][k].push_back(HyperPlane(-plane.normal_vector, -plane.d, plane.ellipsoid_offset));
+                    planes[j][k].push_back(HyperPlane(-plane.normal_vector, -plane.d, plane.ellipsoid_offset, 0, i));
                 }
             }
         }
 
         for(int k=0; k < discreteSchedule.K; k++){
             for(int i=0; i < waypoint.size(); i++){ // robot i
-                for(auto& obstacle : environment.obstacles){
+                for(size_t obs_idx = 0; obs_idx < environment.obstacles.size(); ++obs_idx) {
+                    const auto& obstacle = environment.obstacles[obs_idx];
                     Eigen::MatrixXd segment_i(3, 2);
                     segment_i << graph.getVertex(getWaypoint(i, k)).pos, graph.getVertex(getWaypoint(i, k+1)).pos;
                     
                     Eigen::MatrixXd obstacle_matrix = getObstacleCorners(obstacle.min, obstacle.max);
                     
                     HyperPlane plane = computeSVM(segment_i, obstacle_matrix);
+                    plane.separated_from_type = 1; // Obstacle
+                    plane.separated_from_id = obs_idx;
                     planes[i][k].push_back(plane);
                 }
             }
@@ -219,18 +224,28 @@ private:
         Eigen::VectorXd solution = solver.getSolution();
         Eigen::Vector3d normal = solution.head<3>();
         double d_val = solution(3);
-
+        
         double norm_val = normal.norm();
-        if (norm_val < 1e-6) {
-            // Çözüm başarısız veya normal vektör sıfır. Bu durum ayrılabilir olmadıklarında olabilir.
-            // Geçici bir çözüm olarak, merkezleri birleştiren vektörü kullanabiliriz.
-            normal = (points_i.rowwise().mean() - points_j.rowwise().mean()).normalized();
+        if (norm_val < 1e-6) { // If SVM failed to find a good normal (e.g., sets are not separable with margin)
+            Eigen::Vector3d centroid_diff = points_i.rowwise().mean() - points_j.rowwise().mean();
+            if (centroid_diff.norm() < 1e-6) { // Centroids are too close or identical
+                // Fallback to an arbitrary non-zero normal if centroids are also too close
+                normal = Eigen::Vector3d(1.0, 0.0, 0.0);
+            } else {
+                normal = centroid_diff.normalized();
+            }
             d_val = normal.dot((points_i.rowwise().mean() + points_j.rowwise().mean()) * 0.5);
-            norm_val = 1.0;
+            norm_val = 1.0; // Treat the fallback normal as unit length for consistency
         }
 
-        double ellipsoid_offset = calculate_offset(normal / norm_val);
-        return HyperPlane(normal / norm_val, d_val / norm_val, ellipsoid_offset);
+        double ellipsoid_offset_val;
+        if (is_obstacle) {
+            ellipsoid_offset_val = robotModel.radius; // For obstacle, robot is treated as a sphere
+        } else {
+            ellipsoid_offset_val = calculate_offset(normal / norm_val); // For robot-robot, use ellipsoid model
+        }
+
+        return HyperPlane(normal / norm_val, d_val / norm_val, ellipsoid_offset_val);
     }
 
     double calculate_offset(Eigen::Vector3d normal_vector){

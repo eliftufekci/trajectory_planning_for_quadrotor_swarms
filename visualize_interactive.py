@@ -62,11 +62,15 @@ def load_hyperplanes_csv(path):
     with open(path) as f:
         reader = csv.DictReader(f)
         for row in reader:
+            # ellipsoid_offset'in C++ tarafında hesaplanıp CSV'ye eklendiğini varsayıyoruz.
             planes.append({
                 "robot_id": int(row["robot_id"]),
                 "timestep": int(row["timestep"]),
                 "n": np.array([float(row["nx"]), float(row["ny"]), float(row["nz"])]),
                 "d": float(row["d"]),
+                "ellipsoid_offset": float(row["ellipsoid_offset"]) if "ellipsoid_offset" in row else 0.0,
+                "separated_from_type": int(row["separated_from_type"]) if "separated_from_type" in row else -1,
+                "separated_from_id": int(row["separated_from_id"]) if "separated_from_id" in row else -1,
             })
     return planes
 # ─────────────────────────────────────────────
@@ -134,12 +138,20 @@ def wireframe_trace(mn, mx, color="gray", width=1.5):
 # ─────────────────────────────────────────────
 #  Hyperplane (n,d) → Surface trace
 # ─────────────────────────────────────────────
-def hyperplane_trace(plane_data, size=2.0, color='cyan', opacity=0.3, visible=False):
+def hyperplane_trace(plane_data, name, scene_center=None, size=2.0, color='cyan', opacity=0.3, visible=False):
     n = plane_data['n']
-    d = plane_data['d']
+    d_raw = plane_data['d']
+    offset = plane_data.get('ellipsoid_offset', 0.0)
 
-    # Düzlemin orijine en yakın noktası
-    p0 = d * n
+    # Ham SVM düzlemi: n^T x = d_raw
+    # Robota teğet olan gerçek kısıt düzlemi: n^T x = d_raw - offset
+    d = d_raw - offset
+
+    # Sahne merkezini düzlem üzerine iz düşür → robotlara yakın merkez
+    if scene_center is None:
+        scene_center = np.zeros(3)
+    p0 = scene_center - (np.dot(n, scene_center) - d) * n  # düzlem üzerindeki en yakın nokta
+
 
     # Düzlem için bir ortonormal baz oluştur
     if abs(n[0]) < 0.9:
@@ -166,8 +178,7 @@ def hyperplane_trace(plane_data, size=2.0, color='cyan', opacity=0.3, visible=Fa
         colorscale=[[0, color], [1, color]],
         showscale=False,
         opacity=opacity,
-        name=f"Plane R{plane_data['robot_id']} T{plane_data['timestep']}",
-        hoverinfo="name",
+        hovertemplate=f"<b>{name}</b><extra></extra>",
         visible=visible,
         lighting=dict(ambient=0.8, diffuse=0.2)
     )
@@ -213,8 +224,10 @@ def axis_style(title, axis_range):
 # ─────────────────────────────────────────────
 def build_figure(env, vertices, edges, paths, hyperplanes):
     fig  = go.Figure()
-    wmin = env["world_min"]
-    wmax = env["world_max"]
+    wmin = np.array(env["world_min"])
+    wmax = np.array(env["world_max"])
+    scene_center = (wmin + wmax) / 2.0
+
 
     # ── Dünya kutusu wireframe ────────────────────────────────────────
     fig.add_trace(wireframe_trace(wmin, wmax, color="rgba(80,80,80,0.6)", width=1.5))
@@ -332,45 +345,96 @@ def build_figure(env, vertices, edges, paths, hyperplanes):
         ))
 
     # ── Hiper Düzlemler (Hyperplanes) ────────────────────────────────
+    # Bu liste, her bir hiper düzlemin robot_id ve timestep bilgilerini saklar.
+    # Bu sayede filtreleme butonları için görünürlük listeleri oluşturulabilir.
+    plane_properties = []
     if hyperplanes:
+        is_first_plane = True # Legend'da tek bir girdi olması için
         for p_data in hyperplanes:
-            # Karmaşayı önlemek için varsayılan olarak sadece T=0'ı göster
-            is_visible = (p_data['timestep'] == 0)
-            fig.add_trace(hyperplane_trace(
-                p_data,
-                size=1.5,
-                color='rgba(142, 68, 173, 0.5)', # Mor tonu
+            # Varsayılan olarak tüm düzlemleri gizli başlat
+            is_visible = False
+
+            # Düzlem için açıklayıcı bir isim oluştur
+            from_type = p_data.get('separated_from_type', -1)
+            from_id = p_data.get('separated_from_id', -1)
+            opponent_str = ""
+            if from_type == 0: # Robot
+                opponent_str = f"-R{from_id}"
+            elif from_type == 1: # Obstacle
+                # Engel ID'leri 0'dan başladığı için görselde 1'den başlatıyoruz
+                opponent_str = f"-Obs{from_id + 1}"
+            
+            # Hover text için kullanılacak bireysel isim
+            individual_plane_name = f"R{p_data['robot_id']}{opponent_str} T{p_data['timestep']}"
+
+            trace = hyperplane_trace(p_data, name=individual_plane_name, scene_center=scene_center, size=10.0,
+                color='rgba(142, 68, 173, 0.5)', # Mor tonu (varsayılan)
                 opacity=0.4,
                 visible=is_visible
-            ))
+            )
 
-    # ── İnteraktif Butonlar (Hiper düzlemler için) ───────────────────
+            # Legend'da gruplama için ayarlar
+            trace.name = "Hyperplanes"
+            trace.legendgroup = "hyperplanes"
+            trace.showlegend = is_first_plane
+            fig.add_trace(trace)
+            is_first_plane = False
+
+            # Filtreleme için düzlem özelliklerini sakla
+            plane_properties.append({'robot_id': p_data['robot_id'], 'timestep': p_data['timestep']})
+
+    # ── İnteraktif Dropdown Menü (Hiper düzlemler için) ───────────────────
+    updatemenus = None
     if hyperplanes:
+        # Sadece hiper düzlem izlerinin indekslerini al
         surface_indices = [i for i, trace in enumerate(fig.data) if isinstance(trace, go.Surface)]
 
-        visibility_hide = [False] * len(surface_indices)
-        visibility_t0   = [(fig.data[i].name.endswith("T0")) for i in surface_indices]
-        visibility_all  = [True] * len(surface_indices)
+        buttons = []
 
+        # Genel kontrol butonları
+        buttons.append(dict(label="Düzlemleri Gizle",
+                             method="restyle",
+                             args=[{"visible": [False] * len(surface_indices)}, surface_indices]))
+        buttons.append(dict(label="Tüm Düzlemleri Göster",
+                             method="restyle",
+                             args=[{"visible": [True] * len(surface_indices)}, surface_indices]))
+        
+        # Timestep'e göre filtreleme butonları
+        all_timesteps = sorted(list(set(p['timestep'] for p in plane_properties)))
+        for t in all_timesteps:
+            visibility = [p['timestep'] == t for p in plane_properties]
+            buttons.append(dict(label=f"Sadece Timestep T={t}",
+                                 method="restyle",
+                                 args=[{"visible": visibility}, surface_indices]))
+        
+        # Robot ID'ye göre filtreleme butonları
+        all_robot_ids = sorted(list(set(p['robot_id'] for p in plane_properties)))
+        for r_id in all_robot_ids:
+            visibility = [p['robot_id'] == r_id for p in plane_properties]
+            buttons.append(dict(label=f"Sadece Robot R{r_id}",
+                                 method="restyle",
+                                 args=[{"visible": visibility}, surface_indices]))
+
+        # Robot ID ve Timestep'e göre kombine filtreleme butonları
+        unique_combinations = sorted(list(set((p['robot_id'], p['timestep']) for p in plane_properties)))
+        for r_id, t in unique_combinations:
+            visibility = [(p['robot_id'] == r_id and p['timestep'] == t) for p in plane_properties]
+            buttons.append(dict(label=f"Sadece Robot R{r_id}, Timestep T={t}",
+                                 method="restyle",
+                                 args=[{"visible": visibility}, surface_indices]))
+
+        # Artık tüm düzlemler varsayılan olarak gizli olduğu için ilk buton ("Gizle") aktif olmalı.
+        active_button_index = 0
         updatemenus = [
             dict(
-                type="buttons",
+                type="dropdown",
                 direction="down",
-                active=1, # Varsayılan olarak "T=0 Göster" aktif
+                active=active_button_index,
                 x=0.0, xanchor="left",
                 y=1.0, yanchor="top",
                 pad={"r": 10, "t": 10},
-                buttons=list([
-                    dict(label="Düzlemleri Gizle",
-                         method="restyle",
-                         args=[{"visible": visibility_hide}, surface_indices]),
-                    dict(label="T=0 Düzlemlerini Göster",
-                         method="restyle",
-                         args=[{"visible": visibility_t0}, surface_indices]),
-                    dict(label="Tüm Düzlemleri Göster",
-                         method="restyle",
-                         args=[{"visible": visibility_all}, surface_indices]),
-                ]),
+                buttons=buttons,
+                showactive=True,
             )
         ]
 
@@ -401,7 +465,7 @@ def build_figure(env, vertices, edges, paths, hyperplanes):
             zaxis=axis_style("Z (m)", [wmin[2]-margin, wmax[2]+margin]),
             camera=dict(eye=dict(x=1.5, y=-1.8, z=1.2)),
         ),
-        updatemenus=updatemenus if hyperplanes else None
+        updatemenus=updatemenus
     )
 
     return fig

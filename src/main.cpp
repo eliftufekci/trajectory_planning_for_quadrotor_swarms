@@ -48,7 +48,7 @@ void saveSafePolyhedronCSV(const SafePolyhedron& poly, const std::string& path) 
         std::cerr << "HATA: Güvenli Polyhedron dosyası açılamadı: " << path << std::endl;
         return;
     }
-    f << "robot_id,timestep,nx,ny,nz,d,ellipsoid_offset\n";
+    f << "robot_id,timestep,nx,ny,nz,d,ellipsoid_offset,separated_from_type,separated_from_id\n";
     for (size_t i = 0; i < poly.planes.size(); ++i) {
         for (size_t k = 0; k < poly.planes[i].size(); ++k) {
             for (const auto& plane : poly.planes[i][k]) {
@@ -57,7 +57,9 @@ void saveSafePolyhedronCSV(const SafePolyhedron& poly, const std::string& path) 
                   << plane.normal_vector.y() << ","
                   << plane.normal_vector.z() << ","
                   << plane.d << ","
-                  << plane.ellipsoid_offset << "\n";
+                  << plane.ellipsoid_offset << ","
+                  << plane.separated_from_type << ","
+                  << plane.separated_from_id << "\n";
             }
         }
     }
@@ -73,11 +75,11 @@ int main(int argc, char* argv[]) {
 
     Environment env = Environment::loadFromYAML(yaml_path);
     RobotModel robot;
-    double step_size = 0.5;
+    double step_size = 0.3;
     FCLCollisionChecker fclCollisionChecker(env, robot);
 
-    // GridRoadMapGenerator roadMapGenerator(env, fclCollisionChecker, step_size);
-    SPARSRoadMapGenerator roadMapGenerator(env, fclCollisionChecker);
+    GridRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker, step_size);
+    // SPARSRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker);
 
     Graph environment_graph;
     try {
