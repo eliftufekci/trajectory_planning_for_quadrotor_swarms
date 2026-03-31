@@ -8,6 +8,7 @@
 #include "Environment.hpp"
 #include "FCLCollisionChecker.hpp"
 #include "Graph.hpp"
+#include "RobotModel.hpp"
 #include "RoadMapGenerator.hpp"
 
 
@@ -16,9 +17,10 @@ public:
     double grid_step;
 
     GridRoadMapGenerator(const Environment& env,
+                     const RobotModel& robot,
                      const FCLCollisionChecker& collisionChecker,
                      double grid_step = 0.5)
-        : RoadMapGenerator(env, collisionChecker)
+        : RoadMapGenerator(env, collisionChecker, robot)
         , grid_step(grid_step) {}
 
     Graph createRoadMap() override {
@@ -59,30 +61,31 @@ private:
     // ── 1: engel olmayan noktaları vertex olarak ekle ─────────
     void addFreeVertices(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap)
     {
-        const auto& wmin = env.world_min;
-        const auto& wmax = env.world_max;
+        const Eigen::Vector3d& wmin = env.world_min;
+        const Eigen::Vector3d& wmax = env.world_max;
 
-        // Kaç adım atılacağını önceden hesapla (sınır dahil)
-        int nx = static_cast<int>(std::ceil((wmax.x() - wmin.x()) / grid_step)) + 1;
-        int ny = static_cast<int>(std::ceil((wmax.y() - wmin.y()) / grid_step)) + 1;
-        int nz = static_cast<int>(std::ceil((wmax.z() - wmin.z()) / grid_step)) + 1;
+        // Robotun boyutlarına göre grid index'leri için güvenli aralığı hesapla
+        double inflation = robotModel.radius;
 
-        for (int ix = 0; ix < nx; ++ix)
-        for (int iy = 0; iy < ny; ++iy)
-        for (int iz = 0; iz < nz; ++iz) {
+        int ix_start = static_cast<int>(std::ceil(inflation / grid_step));
+        int iy_start = static_cast<int>(std::ceil(inflation / grid_step));
+        int iz_start = static_cast<int>(std::ceil(inflation / grid_step));
+
+        int ix_end = static_cast<int>(std::floor((wmax.x() - wmin.x() - inflation) / grid_step));
+        int iy_end = static_cast<int>(std::floor((wmax.y() - wmin.y() - inflation) / grid_step));
+        int iz_end = static_cast<int>(std::floor((wmax.z() - wmin.z() - inflation) / grid_step));
+
+        for (int ix = ix_start; ix <= ix_end; ++ix)
+        for (int iy = iy_start; iy <= iy_end; ++iy)
+        for (int iz = iz_start; iz <= iz_end; ++iz) {
             double x = wmin.x() + ix * grid_step;
             double y = wmin.y() + iy * grid_step;
             double z = wmin.z() + iz * grid_step;
 
-            // Sınırı aşanları sınıra sabitle
-            x = std::min(x, wmax.x());
-            y = std::min(y, wmax.y());
-            z = std::min(z, wmax.z());
             Eigen::Vector3d point(x, y, z);
             if (collisionChecker.isOccupied(point)) continue;
 
             auto key = std::make_tuple(ix, iy, iz);
-            if (indexMap.count(key)) continue;
 
             int id = graph.addVertex(point);
             indexMap[key] = id;
