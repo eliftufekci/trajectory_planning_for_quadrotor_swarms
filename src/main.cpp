@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include "BezierCurve.hpp"
 #include "Environment.hpp"
 #include "FCLCollisionChecker.hpp"
 #include "Graph.hpp"
@@ -121,15 +122,19 @@ int main(int argc, char* argv[]) {
     std::cout << "mapfc solver worked succesfully\n";
     DiscreteSchedule schedule = solver.solve();
 
-    HyperPlaneSeparator hyperPlaneSeparator(environment_graph, robot, schedule, env);
-    SafePolyhedron safePolyhedron = hyperPlaneSeparator.compute();
-    saveSafePolyhedronCSV(safePolyhedron, "hyperplanes.csv");
-
-
     std::cout << "Makespan (K): " << schedule.K << "\n";
     for (size_t i = 0; i < schedule.waypoint.size(); ++i) {
         std::cout << "Robot " << i << " path length: " << schedule.waypoint[i].size() << "\n";
     }
 
+    HyperPlaneSeparator hyperPlaneSeparator(environment_graph, robot, schedule, env);
+    SafePolyhedron safePolyhedron = hyperPlaneSeparator.compute();
+    saveSafePolyhedronCSV(safePolyhedron, "hyperplanes.csv");
+
+    int D = 7; // Bezier curve degree
+    int C = 4; // Continuity level
+    std::vector<double> user_parameter = {1.0, 1.0, 1.0, 1.0}; // gamma_c weights
+
+    BezierCurve bezierCurve(D, C, &env);  
     return 0;
 }

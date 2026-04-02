@@ -7,7 +7,7 @@
 #include "SafePolyhedron.hpp"
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-#include <eigen3/Eigen/src/Core/Matrix.h>
+#include <unistd.h>
 #include <vector>
 #include <algorithm>
 #include <OsqpEigen/Solver.hpp>
@@ -16,12 +16,12 @@ struct BezierCurve{
     const int D; // Bezier curve degree
     const int C; // Continuity level (e.g., C0, C1, C2)
 
-    const Environment* env_ptr; // Pointer to the environment for agent start/goal
+    const Environment* environment; // Pointer to the environment for agent start/goal
 
     std::map<int, long long> factorial_lookup; // Changed to long long to prevent overflow
 
     BezierCurve(int degree, int continuity_level, const Environment* env)
-        : D(degree), C(continuity_level), env_ptr(env) {
+        : D(degree), C(continuity_level), environment(env) {
         fill_lookup_table();
     }
 
@@ -109,24 +109,22 @@ struct BezierCurve{
         return (double)factorial_lookup[n] / (factorial_lookup[i] * factorial_lookup[n-i]);
     }
 
-    std::vector<Eigen::Vector3d> QPSolver(
-        const SafePolyhedron& safe_polyhedron,
-        int agent_id, // Use agent_id to get start/goal from env_ptr
-        const std::vector<double>& user_parameter, // gamma_c weights
-        int K, // number of pieces
-        double T_total // total time
-    ){
+    std::vector<Eigen::Vector3d> compute_control_points(const SafePolyhedron& safe_polyhedron,
+                                                        int agent_id, // Use agent_id to get start/goal from environment
+                                                        const std::vector<double>& user_parameter, // gamma_c weights
+                                                        int K, // number of pieces
+                                                        double T_total){ // total time
         double T_piece = T_total / K;
 
         const int n_vars_per_dim = K * (D + 1);
         const int n_vars = 3 * n_vars_per_dim;
 
-        if (!env_ptr) {
+        if (!environment) {
             throw std::runtime_error("Environment pointer is null in BezierCurve::QPSolver.");
         }
 
-        const Eigen::Vector3d& start_pos = env_ptr->agents[agent_id].start;
-        const Eigen::Vector3d& goal_pos = env_ptr->agents[agent_id].goal;
+        const Eigen::Vector3d& start_pos = environment->agents[agent_id].start;
+        const Eigen::Vector3d& goal_pos = environment->agents[agent_id].goal;
 
         // --- 1. Hessian Matrisi (P) ---
         // Cost = y^T * P * y
@@ -161,7 +159,6 @@ struct BezierCurve{
         for (int k = 0; k < K; ++k) {
             for (int d = 0; d <= D; ++d) {
                 int cp_idx = k * (D + 1) + d;
-                // Use the correct agent_id for the safe polyhedron
                 for (const auto& hyperplane : safe_polyhedron.planes[agent_id][k]) {
                     A_triplets.emplace_back(constraint_idx, cp_idx, hyperplane.normal_vector.x());
                     A_triplets.emplace_back(constraint_idx, cp_idx + n_vars_per_dim, hyperplane.normal_vector.y());
@@ -198,17 +195,150 @@ struct BezierCurve{
             if (C >= 1) {
                 int ykD_idx = (k-1)*(D+1) + D;
                 int ykD_1_idx = (k-1)*(D+1) + D - 1;
-                int yk1_idx = k*(D+1) + 1;
+                int yk1_idx = k*(D+1) + 1; 
                 int yk0_idx = k*(D+1);
                 // yk1 - yk0 - (ykD - ykD_1) = 0
                 A_triplets.emplace_back(constraint_idx, yk1_idx, 1.0); A_triplets.emplace_back(constraint_idx, yk0_idx, -1.0); A_triplets.emplace_back(constraint_idx, ykD_idx, -1.0); A_triplets.emplace_back(constraint_idx, ykD_1_idx, 1.0); l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
                 A_triplets.emplace_back(constraint_idx, yk1_idx+n_vars_per_dim, 1.0); A_triplets.emplace_back(constraint_idx, yk0_idx+n_vars_per_dim, -1.0); A_triplets.emplace_back(constraint_idx, ykD_idx+n_vars_per_dim, -1.0); A_triplets.emplace_back(constraint_idx, ykD_1_idx+n_vars_per_dim, 1.0); l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
                 A_triplets.emplace_back(constraint_idx, yk1_idx+2*n_vars_per_dim, 1.0); A_triplets.emplace_back(constraint_idx, yk0_idx+2*n_vars_per_dim, -1.0); A_triplets.emplace_back(constraint_idx, ykD_idx+2*n_vars_per_dim, -1.0); A_triplets.emplace_back(constraint_idx, ykD_1_idx+2*n_vars_per_dim, 1.0); l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
             }
-            // Higher order continuity can be added here...
+            // C2: y_{k,2} - 2*y_{k,1} + y_{k,0} = y_{k-1,D} - 2*y_{k-1,D-1} + y_{k-1,D-2}
+            if (C >= 2) {
+                int ykD_idx = (k-1)*(D+1) + D;
+                int ykD_1_idx = (k-1)*(D+1) + D - 1;
+                int ykD_2_idx = (k-1)*(D+1) + D - 2;
+                int yk2_idx = k*(D+1) + 2;
+                int yk1_idx = k*(D+1) + 1;
+                int yk0_idx = k*(D+1);
+                // yk2 -2*yk1 + yk0 - (ykD - 2*ykD_1 + ykD_2) = 0
+                A_triplets.emplace_back(constraint_idx, yk2_idx, 1.0); 
+                A_triplets.emplace_back(constraint_idx, yk1_idx, -2.0); 
+                A_triplets.emplace_back(constraint_idx, yk0_idx, 1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_idx, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_1_idx, 2.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_2_idx, -1.0); 
+                
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, yk2_idx+n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, yk1_idx+n_vars_per_dim, -2.0); 
+                A_triplets.emplace_back(constraint_idx, yk0_idx+n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_idx+n_vars_per_dim, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_1_idx+n_vars_per_dim, 2.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_2_idx+n_vars_per_dim, -1.0); 
+                
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, yk2_idx+2*n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, yk1_idx+2*n_vars_per_dim, -2.0); 
+                A_triplets.emplace_back(constraint_idx, yk0_idx+2*n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_idx+2*n_vars_per_dim, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_1_idx+2*n_vars_per_dim, 2.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_2_idx+2*n_vars_per_dim, -1.0);
+
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+            }
+            // C3: y_{k,3} - 3*y_{k,2} + 3*y_{k,1} - y_{k,0} = y_{k-1,D} - 3*y_{k-1,D-1} + 3*y_{k-1,D-2} - y_{k-1, D-3}
+            if (C >= 3) {
+                int ykD_idx = (k-1)*(D+1) + D;
+                int ykD_1_idx = (k-1)*(D+1) + D - 1;
+                int ykD_2_idx = (k-1)*(D+1) + D - 2;
+                int ykD_3_idx = (k-1)*(D+1) + D - 3;
+                int yk3_idx = k*(D+1) + 3;
+                int yk2_idx = k*(D+1) + 2;
+                int yk1_idx = k*(D+1) + 1;
+                int yk0_idx = k*(D+1);
+                // yk3 - 3*yk2 + 3*yk1 - yk0 - (ykD - 3*ykD_1 + 3*ykD_2 - ykD_3) = 0
+                A_triplets.emplace_back(constraint_idx, yk3_idx, 1.0); 
+                A_triplets.emplace_back(constraint_idx, yk2_idx, -3.0); 
+                A_triplets.emplace_back(constraint_idx, yk1_idx, 3.0); 
+                A_triplets.emplace_back(constraint_idx, yk0_idx, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_idx, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_1_idx, 3.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_2_idx, -3.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_3_idx, 1.0); 
+                
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, yk3_idx+n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, yk2_idx+n_vars_per_dim, -3.0); 
+                A_triplets.emplace_back(constraint_idx, yk1_idx+n_vars_per_dim, 3.0); 
+                A_triplets.emplace_back(constraint_idx, yk0_idx+n_vars_per_dim, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_idx+n_vars_per_dim, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_1_idx+n_vars_per_dim, 3.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_2_idx+n_vars_per_dim, -3.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_3_idx+n_vars_per_dim, 1.0); 
+                
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, yk3_idx+2*n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, yk2_idx+2*n_vars_per_dim, -3.0); 
+                A_triplets.emplace_back(constraint_idx, yk1_idx+2*n_vars_per_dim, 3.0); 
+                A_triplets.emplace_back(constraint_idx, yk0_idx+2*n_vars_per_dim, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_idx+2*n_vars_per_dim, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_1_idx+2*n_vars_per_dim, 3.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_2_idx+2*n_vars_per_dim, -3.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_3_idx+2*n_vars_per_dim, 1.0);
+
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+            }
+            // C4: y_{k,4} - 4*y_{k,3} + 6*y_{k,2} - 4*y_{k,1} + y_{k,0} = y_{k-1,D} - 4*y_{k-1,D-1} + 6*y_{k-1,D-2} - 4*y_{k-1, D-3} + y_{k-1, D-4}
+            if (C >= 4) {
+                int ykD_idx = (k-1)*(D+1) + D;
+                int ykD_1_idx = (k-1)*(D+1) + D - 1;
+                int ykD_2_idx = (k-1)*(D+1) + D - 2;
+                int ykD_3_idx = (k-1)*(D+1) + D - 3;
+                int ykD_4_idx = (k-1)*(D+1) + D - 4;
+                int yk4_idx = k*(D+1) + 4;
+                int yk3_idx = k*(D+1) + 3;
+                int yk2_idx = k*(D+1) + 2;
+                int yk1_idx = k*(D+1) + 1;
+                int yk0_idx = k*(D+1);
+                // yk4 - 4*yk3 + 6*yk2 - 4*yk1 + yk0 - (ykD - 4*ykD_1 + 6*ykD_2 - 4*ykD_3 + ykD_4) = 0
+                A_triplets.emplace_back(constraint_idx, yk4_idx, 1.0); 
+                A_triplets.emplace_back(constraint_idx, yk3_idx, -4.0); 
+                A_triplets.emplace_back(constraint_idx, yk2_idx, 6.0); 
+                A_triplets.emplace_back(constraint_idx, yk1_idx, -4.0); 
+                A_triplets.emplace_back(constraint_idx, yk0_idx, 1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_idx, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_1_idx, 4.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_2_idx, -6.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_3_idx, 4.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_4_idx, -1.0); 
+                
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, yk4_idx+n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, yk3_idx+n_vars_per_dim, -4.0); 
+                A_triplets.emplace_back(constraint_idx, yk2_idx+n_vars_per_dim, 6.0); 
+                A_triplets.emplace_back(constraint_idx, yk1_idx+n_vars_per_dim, -4.0); 
+                A_triplets.emplace_back(constraint_idx, yk0_idx+n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_idx+n_vars_per_dim, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_1_idx+n_vars_per_dim, 4.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_2_idx+n_vars_per_dim, -6.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_3_idx+n_vars_per_dim, 4.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_4_idx+n_vars_per_dim, -1.0); 
+
+                
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, yk4_idx+2*n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, yk3_idx+2*n_vars_per_dim, -4.0); 
+                A_triplets.emplace_back(constraint_idx, yk2_idx+2*n_vars_per_dim, 6.0); 
+                A_triplets.emplace_back(constraint_idx, yk1_idx+2*n_vars_per_dim, -4.0); 
+                A_triplets.emplace_back(constraint_idx, yk0_idx+2*n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_idx+2*n_vars_per_dim, -1.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_1_idx+2*n_vars_per_dim, 4.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_2_idx+2*n_vars_per_dim, -6.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_3_idx+2*n_vars_per_dim, 4.0); 
+                A_triplets.emplace_back(constraint_idx, ykD_4_idx+2*n_vars_per_dim, -1.0); 
+
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+            }
+            
         }
 
-        // d. Boundary Derivative Constraints (vel, acc, ... = 0 at start and end)
+        // d. Boundary Derivative Constraints (vel, acc, jerk, snap = 0 at start and end)
         for (int c = 1; c <= C; ++c) {
             // At t=0, c-th derivative is 0. This means Delta^c y_0 = 0.
             // For c=1: y_1 - y_0 = 0
@@ -217,6 +347,67 @@ struct BezierCurve{
                 A_triplets.emplace_back(constraint_idx, 1+n_vars_per_dim, 1.0); A_triplets.emplace_back(constraint_idx, 0+n_vars_per_dim, -1.0); l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
                 A_triplets.emplace_back(constraint_idx, 1+2*n_vars_per_dim, 1.0); A_triplets.emplace_back(constraint_idx, 0+2*n_vars_per_dim, -1.0); l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
             }
+            // For c=2: y_2 - 2*y_1 + y_0 = 0
+            if(c==2){
+                A_triplets.emplace_back(constraint_idx, 2, 1.0); 
+                A_triplets.emplace_back(constraint_idx, 1, -2.0); 
+                A_triplets.emplace_back(constraint_idx, 0, 1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, 2+n_vars_per_dim, 1.0);
+                A_triplets.emplace_back(constraint_idx, 1+n_vars_per_dim, -2.0);
+                A_triplets.emplace_back(constraint_idx, 0+n_vars_per_dim, 1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, 2+2*n_vars_per_dim, 1.0);
+                A_triplets.emplace_back(constraint_idx, 1+2*n_vars_per_dim, -2.0); 
+                A_triplets.emplace_back(constraint_idx, 0+2*n_vars_per_dim, 1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+            }
+            // For c=3: y_3 - 3*y_2 + 3*y_1 - y_0 = 0
+            if(c==3) {
+                A_triplets.emplace_back(constraint_idx, 3, 1.0);
+                A_triplets.emplace_back(constraint_idx, 2, -3.0); 
+                A_triplets.emplace_back(constraint_idx, 1, 3.0); 
+                A_triplets.emplace_back(constraint_idx, 0, -1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, 3+n_vars_per_dim, 1.0);
+                A_triplets.emplace_back(constraint_idx, 2+n_vars_per_dim, -3.0); 
+                A_triplets.emplace_back(constraint_idx, 1+n_vars_per_dim, 3.0); 
+                A_triplets.emplace_back(constraint_idx, 0+n_vars_per_dim, -1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, 3+2*n_vars_per_dim, 1.0);
+                A_triplets.emplace_back(constraint_idx, 2+2*n_vars_per_dim, -3.0); 
+                A_triplets.emplace_back(constraint_idx, 1+2*n_vars_per_dim, 3.0); 
+                A_triplets.emplace_back(constraint_idx, 0+2*n_vars_per_dim, -1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+            }
+            // For c=4: y_4 - 4*y_3 + 6*y_2 - 4*y_1 + y_0 = 0
+            if(c==4){
+                A_triplets.emplace_back(constraint_idx, 4, 1.0);
+                A_triplets.emplace_back(constraint_idx, 3, -4.0);
+                A_triplets.emplace_back(constraint_idx, 2, 6.0); 
+                A_triplets.emplace_back(constraint_idx, 1, -4.0); 
+                A_triplets.emplace_back(constraint_idx, 0, 1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, 4+n_vars_per_dim, 1.0);
+                A_triplets.emplace_back(constraint_idx, 3+n_vars_per_dim, -4.0);
+                A_triplets.emplace_back(constraint_idx, 2+n_vars_per_dim, 6.0); 
+                A_triplets.emplace_back(constraint_idx, 1+n_vars_per_dim, -4.0); 
+                A_triplets.emplace_back(constraint_idx, 0+n_vars_per_dim, 1.0);  
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx, 4+2*n_vars_per_dim, 1.0);
+                A_triplets.emplace_back(constraint_idx, 3+2*n_vars_per_dim, -4.0);
+                A_triplets.emplace_back(constraint_idx, 2+2*n_vars_per_dim, 6.0); 
+                A_triplets.emplace_back(constraint_idx, 1+2*n_vars_per_dim, -4.0); 
+                A_triplets.emplace_back(constraint_idx, 0+2*n_vars_per_dim, 1.0);  
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+            }
+
             // At t=T, c-th derivative is 0. This means Delta^c y_{D-c} = 0.
             // For c=1: y_D - y_{D-1} = 0
             if (c==1) {
@@ -226,7 +417,83 @@ struct BezierCurve{
                 A_triplets.emplace_back(constraint_idx, cpD_idx+n_vars_per_dim, 1.0); A_triplets.emplace_back(constraint_idx, cpD_1_idx+n_vars_per_dim, -1.0); l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
                 A_triplets.emplace_back(constraint_idx, cpD_idx+2*n_vars_per_dim, 1.0); A_triplets.emplace_back(constraint_idx, cpD_1_idx+2*n_vars_per_dim, -1.0); l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
             }
+            // For c=2: y_D - 2*y_{D-1} + y_{D-2}= 0
+            if (c==2) { // y_D - 2*y_{D-1} + y_{D-2} = 0
+                int cpD_idx = n_vars_per_dim - 1;
+                int cpD_1_idx = n_vars_per_dim - 2;
+                int cpD_2_idx = n_vars_per_dim - 3;
+
+                A_triplets.emplace_back(constraint_idx,   cpD_idx, 1.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_1_idx, -2.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_2_idx, 1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx,   cpD_idx+n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_1_idx+n_vars_per_dim, -2.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_2_idx+n_vars_per_dim, 1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx,   cpD_idx+2*n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_1_idx+2*n_vars_per_dim, -2.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_2_idx+2*n_vars_per_dim, 1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+            }
+            // For c=3: y_D - 3*y_{D-1} + 3*y_{D-2} - y_{D_3}= 0
+            if (c==3) { // y_D - 3*y_{D-1} + 3*y_{D-2} - y_{D-3} = 0
+                int cpD_idx = n_vars_per_dim - 1;
+                int cpD_1_idx = n_vars_per_dim - 2;
+                int cpD_2_idx = n_vars_per_dim - 3;
+                int cpD_3_idx = n_vars_per_dim - 4;
+
+                A_triplets.emplace_back(constraint_idx,   cpD_idx, 1.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_1_idx, -3.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_2_idx, 3.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_3_idx, -1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx,   cpD_idx+n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_1_idx+n_vars_per_dim, -3.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_2_idx+n_vars_per_dim, 3.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_3_idx+n_vars_per_dim, -1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx,   cpD_idx+2*n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_1_idx+2*n_vars_per_dim, -3.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_2_idx+2*n_vars_per_dim, 3.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_3_idx+2*n_vars_per_dim, -1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+            }
+            // For c=4: y_D - 4*y_{D-1} + 6*y_{D-2} - 4*y_{D_3} + y_{D_4}= 0
+            if (c==4) { // y_D - 4*y_{D-1} + 6*y_{D-2} - 4*y_{D-3} + y_{D-4} = 0
+                int cpD_idx = n_vars_per_dim - 1;
+                int cpD_1_idx = n_vars_per_dim - 2;
+                int cpD_2_idx = n_vars_per_dim - 3;
+                int cpD_3_idx = n_vars_per_dim - 4;
+                int cpD_4_idx = n_vars_per_dim - 5;
+
+                A_triplets.emplace_back(constraint_idx,   cpD_idx, 1.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_1_idx, -4.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_2_idx, 6.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_3_idx, -4.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_4_idx, 1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx,   cpD_idx+n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_1_idx+n_vars_per_dim, -4.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_2_idx+n_vars_per_dim, 6.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_3_idx+n_vars_per_dim, -4.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_4_idx+n_vars_per_dim, 1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+
+                A_triplets.emplace_back(constraint_idx,   cpD_idx+2*n_vars_per_dim, 1.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_1_idx+2*n_vars_per_dim, -4.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_2_idx+2*n_vars_per_dim, 6.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_3_idx+2*n_vars_per_dim, -4.0); 
+                A_triplets.emplace_back(constraint_idx, cpD_4_idx+2*n_vars_per_dim, 1.0); 
+                l_vec.push_back(0); u_vec.push_back(0); constraint_idx++;
+            }
         }
+        
 
         const int n_constraints = constraint_idx;
         Eigen::SparseMatrix<double> A(n_constraints, n_vars);
@@ -269,5 +536,23 @@ struct BezierCurve{
 
         return control_points;
     }
+
+    std::vector<std::vector<Eigen::Vector3d>> compute(  const SafePolyhedron& safe_polyhedron,
+                                                        const std::vector<double>& user_parameter, // gamma_c weights
+                                                        int K, // number of pieces
+                                                        double T_total){
+
+        if (!environment) {
+            throw std::runtime_error("Environment pointer is null in BezierCurve::compute.");
+        }
+        std::vector<std::vector<Eigen::Vector3d>> all_controll_points;
+        all_controll_points.resize(environment->agents.size());
+        for(size_t i = 0; i < environment->agents.size(); i++){
+            std::vector<Eigen::Vector3d> control_points = compute_control_points(safe_polyhedron, i, user_parameter, K, T_total);
+            all_controll_points[i] = control_points;
+        }
+
+        return all_controll_points;
     }
+    
 };
