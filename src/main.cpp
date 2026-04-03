@@ -5,6 +5,7 @@
 #include "FCLCollisionChecker.hpp"
 #include "Graph.hpp"
 #include "HyperPlaneSeparator.hpp"
+#include "IterativeRefinement.hpp"
 #include "RobotModel.hpp"
 #include "GridRoadMapGenerator.hpp"
 #include "SPARSRoadMapGenerator.hpp"
@@ -79,8 +80,8 @@ int main(int argc, char* argv[]) {
     double step_size = 0.3;
     FCLCollisionChecker fclCollisionChecker(env, robot);
 
-    GridRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker, step_size);
-    // SPARSRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker);
+    // GridRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker, step_size);
+    SPARSRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker);
 
     Graph environment_graph;
     try {
@@ -127,14 +128,14 @@ int main(int argc, char* argv[]) {
         std::cout << "Robot " << i << " path length: " << schedule.waypoint[i].size() << "\n";
     }
 
-    HyperPlaneSeparator hyperPlaneSeparator(environment_graph, robot, schedule, env);
-    SafePolyhedron safePolyhedron = hyperPlaneSeparator.compute();
-    saveSafePolyhedronCSV(safePolyhedron, "hyperplanes.csv");
+    IterativeRefinement iterativeRefinement(environment_graph, schedule, robot, env);
+    int num_iterations = 6;
+    std::vector<std::vector<Eigen::Vector3d>> control_points = iterativeRefinement.refine(static_cast<double>(schedule.K), num_iterations);
 
-    int D = 7; // Bezier curve degree
-    int C = 4; // Continuity level
-    std::vector<double> user_parameter = {1.0, 1.0, 1.0, 1.0}; // gamma_c weights
+    // Save the continuous trajectories for visualization
+    iterativeRefinement.saveControlPointsToCSV(control_points, "control_points.csv");
+    // The iterativeRefinement.refine method now handles saving control points to CSV for each iteration.
+    // The final control points are returned, but not explicitly saved here again.
 
-    BezierCurve bezierCurve(D, C, &env);  
     return 0;
 }

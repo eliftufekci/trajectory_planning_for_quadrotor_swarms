@@ -30,3 +30,11 @@ sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev libcdd-dev 
     make -j$(nproc)
     sudo make install
 )
+
+(
+    start=$(date +%s.%N)
+    ./env_test  "/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/config/environment8.yaml"
+    end=$(date +%s.%N)
+    runtime=$(echo "$end - $start" | bc)
+    echo "Runtime: $runtime seconds"
+)

@@ -40,18 +40,44 @@ def load_edges_csv(path):
     return edges
 
 
-def load_paths_csv(path):
-    """paths.csv -> {agent_id: [(x,y,z), ...]}"""
+def load_paths_csv(path): # paths.csv -> {agent_id: [(x,y,z), ...]}
     paths = {}
     if not os.path.exists(path):
         return paths
     with open(path) as f:
         reader = csv.DictReader(f)
         for row in reader:
-            agent_id = int(row["agent_id"])
-            pos = (float(row["x"]), float(row["y"]), float(row["z"]))
+            agent_id = int(row["agent_id"]) # agent_id
+            pos = (float(row["x"]), float(row["y"]), float(row["z"])) # x,y,z
             paths.setdefault(agent_id, []).append(pos)
     return paths
+
+def load_control_points_csv(directory, pattern="control_points_iter_*.csv"):
+    """
+    Loads control points from multiple CSV files, each representing an iteration.
+    Returns: {iteration_id: {agent_id: [(x,y,z), ...]}}
+    """
+    all_control_points_by_iteration = {}
+    
+    import glob
+    file_paths = glob.glob(os.path.join(directory, pattern))
+    
+    for path in file_paths:
+        filename = os.path.basename(path)
+        iteration_str = filename.split('_iter_')[1].split('.')[0] # "control_points_iter_0.csv" -> 0
+        iteration_id = int(iteration_str)
+
+        current_iteration_control_points = {}
+        with open(path) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                agent_id = int(row["agent_id"])
+                pos = (float(row["x"]), float(row["y"]), float(row["z"]))
+                current_iteration_control_points.setdefault(agent_id, []).append(pos)
+        
+        all_control_points_by_iteration[iteration_id] = current_iteration_control_points
+        
+    return all_control_points_by_iteration
 
 
 def load_hyperplanes_csv(path):
@@ -222,7 +248,7 @@ def axis_style(title, axis_range):
 # ─────────────────────────────────────────────
 #  Ana figür
 # ─────────────────────────────────────────────
-def build_figure(env, vertices, edges, paths, hyperplanes):
+def build_figure(env, vertices, edges, paths, hyperplanes, all_control_points_by_iteration):
     fig  = go.Figure()
     wmin = np.array(env["world_min"])
     wmax = np.array(env["world_max"])
@@ -344,6 +370,32 @@ def build_figure(env, vertices, edges, paths, hyperplanes):
             customdata=np.arange(len(path_points)).reshape(-1,1)
         ))
 
+    # ── Bezier Kontrol Poligonları (Her iterasyon için) ───────────────────
+    control_polygon_trace_info = [] # Stores (global_trace_index, iteration_id)
+    if all_control_points_by_iteration:
+        sorted_iterations = sorted(all_control_points_by_iteration.keys())
+        
+        # Add all control polygon traces, initially hidden
+        for iter_id in sorted_iterations:
+            control_points = all_control_points_by_iteration[iter_id]
+            for agent_id, points in control_points.items():
+                if not points:
+                    continue
+                col = AGENT_COLORS[agent_id % len(AGENT_COLORS)]
+                points_np = np.array(points)
+                
+                trace = go.Scatter3d(
+                    x=points_np[:, 0], y=points_np[:, 1], z=points_np[:, 2],
+                    mode="lines+markers",
+                    line=dict(color=col, width=1.5, dash='dot'),
+                    marker=dict(size=3.5, color=col, symbol='cross'),
+                    name=f"R{agent_id} Kontrol Poligonu (Iter {iter_id})",
+                    hovertemplate=f"<b>R{agent_id} Kontrol Noktası (Iter {iter_id})</b><br>x:%{{x:.2f}} y:%{{y:.2f}} z:%{{z:.2f}}<extra></extra>",
+                    visible=False, # Başlangıçta gizli
+                    legendgroup=f"control_polygons_iter_{iter_id}", showlegend=False) # Legend will be managed by dropdown
+                fig.add_trace(trace)
+                control_polygon_trace_info.append((len(fig.data) - 1, iter_id))
+
     # ── Hiper Düzlemler (Hyperplanes) ────────────────────────────────
     # Bu liste, her bir hiper düzlemin robot_id ve timestep bilgilerini saklar.
     # Bu sayede filtreleme butonları için görünürlük listeleri oluşturulabilir.
@@ -381,21 +433,20 @@ def build_figure(env, vertices, edges, paths, hyperplanes):
             is_first_plane = False
 
             # Filtreleme için düzlem özelliklerini sakla
-            plane_properties.append({'robot_id': p_data['robot_id'], 'timestep': p_data['timestep']})
+            plane_properties.append({'robot_id': p_data['robot_id'], 'timestep': p_data['timestep'], 'trace_idx': len(fig.data) - 1})
 
-    # ── İnteraktif Dropdown Menü (Hiper düzlemler için) ───────────────────
+    # ── İnteraktif Dropdown Menü (Hiper düzlemler ve Kontrol Poligonları için) ───
     updatemenus = None
-    if hyperplanes:
+    all_buttons = []
+    if hyperplanes: # Hyperplane buttons
         # Sadece hiper düzlem izlerinin indekslerini al
-        surface_indices = [i for i, trace in enumerate(fig.data) if isinstance(trace, go.Surface)]
-
-        buttons = []
+        surface_indices = [p['trace_idx'] for p in plane_properties]
 
         # Genel kontrol butonları
-        buttons.append(dict(label="Düzlemleri Gizle",
+        all_buttons.append(dict(label="Düzlemleri Gizle",
                              method="restyle",
                              args=[{"visible": [False] * len(surface_indices)}, surface_indices]))
-        buttons.append(dict(label="Tüm Düzlemleri Göster",
+        all_buttons.append(dict(label="Tüm Düzlemleri Göster",
                              method="restyle",
                              args=[{"visible": [True] * len(surface_indices)}, surface_indices]))
         
@@ -403,7 +454,7 @@ def build_figure(env, vertices, edges, paths, hyperplanes):
         all_timesteps = sorted(list(set(p['timestep'] for p in plane_properties)))
         for t in all_timesteps:
             visibility = [p['timestep'] == t for p in plane_properties]
-            buttons.append(dict(label=f"Sadece Timestep T={t}",
+            all_buttons.append(dict(label=f"Sadece Timestep T={t}",
                                  method="restyle",
                                  args=[{"visible": visibility}, surface_indices]))
         
@@ -411,7 +462,7 @@ def build_figure(env, vertices, edges, paths, hyperplanes):
         all_robot_ids = sorted(list(set(p['robot_id'] for p in plane_properties)))
         for r_id in all_robot_ids:
             visibility = [p['robot_id'] == r_id for p in plane_properties]
-            buttons.append(dict(label=f"Sadece Robot R{r_id}",
+            all_buttons.append(dict(label=f"Sadece Robot R{r_id}",
                                  method="restyle",
                                  args=[{"visible": visibility}, surface_indices]))
 
@@ -419,12 +470,30 @@ def build_figure(env, vertices, edges, paths, hyperplanes):
         unique_combinations = sorted(list(set((p['robot_id'], p['timestep']) for p in plane_properties)))
         for r_id, t in unique_combinations:
             visibility = [(p['robot_id'] == r_id and p['timestep'] == t) for p in plane_properties]
-            buttons.append(dict(label=f"Sadece Robot R{r_id}, Timestep T={t}",
+            all_buttons.append(dict(label=f"Sadece Robot R{r_id}, Timestep T={t}",
                                  method="restyle",
                                  args=[{"visible": visibility}, surface_indices]))
 
-        # Artık tüm düzlemler varsayılan olarak gizli olduğu için ilk buton ("Gizle") aktif olmalı.
-        active_button_index = 0
+    # Control Polygon buttons
+    if control_polygon_trace_info:
+        all_cp_trace_indices = [info[0] for info in control_polygon_trace_info]
+
+        all_buttons.append(dict(label="--- Kontrol Poligonları ---", method="relayout", args=[{"title.text": "3D Environment — İnteraktif Görselleştirme"}]))
+        all_buttons.append(dict(label="Tüm Kontrol Poligonlarını Gizle",
+                                 method="restyle",
+                                 args=[{"visible": [False] * len(all_cp_trace_indices)}, all_cp_trace_indices]))
+        
+        sorted_iterations = sorted(all_control_points_by_iteration.keys())
+        for iter_id_to_show in sorted_iterations:
+            visibility_for_this_iter = [info[1] == iter_id_to_show for info in control_polygon_trace_info]
+            
+            all_buttons.append(dict(label=f"Kontrol Poligonları Iterasyon {iter_id_to_show}",
+                                     method="restyle",
+                                     args=[{"visible": visibility_for_this_iter}, all_cp_trace_indices]))
+
+    if all_buttons:
+        # Default to first button (e.g., hide hyperplanes or hide control polygons)
+        active_button_index = 0 
         updatemenus = [
             dict(
                 type="dropdown",
@@ -433,7 +502,7 @@ def build_figure(env, vertices, edges, paths, hyperplanes):
                 x=0.0, xanchor="left",
                 y=1.0, yanchor="top",
                 pad={"r": 10, "t": 10},
-                buttons=buttons,
+                buttons=all_buttons,
                 showactive=True,
             )
         ]
@@ -482,6 +551,7 @@ def main():
     vert_csv = os.path.join(build, "vertices.csv")
     edge_csv = os.path.join(build, "edges.csv")
     paths_csv = os.path.join(build, "paths.csv")
+    # control_points_csv = os.path.join(build, "control_points.csv") # Now loads multiple files
     hyperplanes_csv = os.path.join(build, "hyperplanes.csv")
 
     if not os.path.exists(env_csv):
@@ -494,17 +564,24 @@ def main():
     edges    = load_edges_csv(edge_csv)    if os.path.exists(edge_csv) else [] 
     paths    = load_paths_csv(paths_csv)
     hyperplanes = load_hyperplanes_csv(hyperplanes_csv)
+    
+    # Load all control points by iteration
+    all_control_points_by_iteration = load_control_points_csv(build, "control_points_iter_*.csv")
 
     print(f"  Engel  : {len(env['obstacles'])}")
     print(f"  Agent  : {len(env['starts'])}")
     print(f"  Vertex : {len(vertices)}")
     print(f"  Edge   : {len(edges)}")
+    if all_control_points_by_iteration:
+        total_cp_count = sum(len(agent_cps) for iter_cps in all_control_points_by_iteration.values() for agent_cps in iter_cps.values())
+        first_iteration_cps = next(iter(all_control_points_by_iteration.values())) # Get agents from first iteration
+        print(f"  Kontrol Noktaları: {total_cp_count} (for {len(first_iteration_cps)} agents across {len(all_control_points_by_iteration)} iterations)")
     if hyperplanes:
         print(f"  Düzlem : {len(hyperplanes)}")
     if paths:
         print(f"  Yol    : {len(paths)}")
 
-    fig = build_figure(env, vertices, edges, paths, hyperplanes)
+    fig = build_figure(env, vertices, edges, paths, hyperplanes, all_control_points_by_iteration)
     out_filename = "solution_with_planes.html" if paths else "environment_interactive.html"
     out = os.path.join(base, out_filename)
     fig.write_html(out, include_plotlyjs="cdn")
