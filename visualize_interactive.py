@@ -371,8 +371,8 @@ def build_figure(env, vertices, edges, paths, hyperplanes, all_control_points_by
         ))
 
     # ── Bezier Kontrol Poligonları (Her iterasyon için) ───────────────────
-    control_polygon_trace_info = [] # Stores (global_trace_index, iteration_id)
     if all_control_points_by_iteration:
+        control_polygon_trace_info = [] # Stores {'trace_idx': ..., 'iter_id': ..., 'agent_id': ...}
         sorted_iterations = sorted(all_control_points_by_iteration.keys())
         
         # Add all control polygon traces, initially hidden
@@ -394,7 +394,7 @@ def build_figure(env, vertices, edges, paths, hyperplanes, all_control_points_by
                     visible=False, # Başlangıçta gizli
                     legendgroup=f"control_polygons_iter_{iter_id}", showlegend=False) # Legend will be managed by dropdown
                 fig.add_trace(trace)
-                control_polygon_trace_info.append((len(fig.data) - 1, iter_id))
+                control_polygon_trace_info.append({'trace_idx': len(fig.data) - 1, 'iter_id': iter_id, 'agent_id': agent_id})
 
     # ── Hiper Düzlemler (Hyperplanes) ────────────────────────────────
     # Bu liste, her bir hiper düzlemin robot_id ve timestep bilgilerini saklar.
@@ -435,78 +435,68 @@ def build_figure(env, vertices, edges, paths, hyperplanes, all_control_points_by
             # Filtreleme için düzlem özelliklerini sakla
             plane_properties.append({'robot_id': p_data['robot_id'], 'timestep': p_data['timestep'], 'trace_idx': len(fig.data) - 1})
 
-    # ── İnteraktif Dropdown Menü (Hiper düzlemler ve Kontrol Poligonları için) ───
-    updatemenus = None
-    all_buttons = []
-    if hyperplanes: # Hyperplane buttons
-        # Sadece hiper düzlem izlerinin indekslerini al
-        surface_indices = [p['trace_idx'] for p in plane_properties]
+    # ── İnteraktif Dropdown Menüler ────────────────────────────────
+    updatemenus = []
+    annotations = []
 
-        # Genel kontrol butonları
-        all_buttons.append(dict(label="Düzlemleri Gizle",
-                             method="restyle",
-                             args=[{"visible": [False] * len(surface_indices)}, surface_indices]))
-        all_buttons.append(dict(label="Tüm Düzlemleri Göster",
-                             method="restyle",
-                             args=[{"visible": [True] * len(surface_indices)}, surface_indices]))
+    # --- Hyperplane Filtresi ---
+    # Kullanıcı isteği üzerine eski, tekli liste yapısı referans olarak buraya eklendi
+    # ve yorum satırına alındı. Bu bölüm aktif değildir.
+    #
+    # all_buttons = []
+    # if hyperplanes:
+    #     surface_indices = [p['trace_idx'] for p in plane_properties]
+    #     all_buttons.append(dict(label="Düzlemleri Gizle",
+    #                          method="restyle",
+    #                          args=[{"visible": [False] * len(surface_indices)}, surface_indices]))
+    #     all_buttons.append(dict(label="Tüm Düzlemleri Göster",
+    #                          method="restyle",
+    #                          args=[{"visible": [True] * len(surface_indices)}, surface_indices]))
+    #     all_timesteps = sorted(list(set(p['timestep'] for p in plane_properties)))
+    #     for t in all_timesteps:
+    #         visibility = [p['timestep'] == t for p in plane_properties]
+    #         all_buttons.append(dict(label=f"Sadece Timestep T={t}",
+    #                              method="restyle",
+    #                              args=[{"visible": visibility}, surface_indices]))
+    #     all_robot_ids = sorted(list(set(p['robot_id'] for p in plane_properties)))
+    #     for r_id in all_robot_ids:
+    #         visibility = [p['robot_id'] == r_id for p in plane_properties]
+    #         all_buttons.append(dict(label=f"Sadece Robot R{r_id}",
+    #                              method="restyle",
+    #                              args=[{"visible": visibility}, surface_indices]))
+    #     unique_combinations = sorted(list(set((p['robot_id'], p['timestep']) for p in plane_properties)))
+    #     for r_id, t in unique_combinations:
+    #         visibility = [(p['robot_id'] == r_id and p['timestep'] == t) for p in plane_properties]
+    #         all_buttons.append(dict(label=f"Sadece Robot R{r_id}, Timestep T={t}",
+    #                              method="restyle",
+    #                              args=[{"visible": visibility}, surface_indices]))
+
+    # --- Bezier Control Polygon Menus ---
+    if 'control_polygon_trace_info' in locals() and control_polygon_trace_info:
+        cp_trace_indices = [info['trace_idx'] for info in control_polygon_trace_info]
+        annotations.append(dict(text="<b>Bézier Filtreleri:</b>", showarrow=False, x=0.01, y=0.89, xref="paper", yref="paper", xanchor="left", yanchor="top", font=dict(size=12)))
+        annotations.append(dict(text="İterasyon", showarrow=False, x=0.01, y=0.84, xref="paper", yref="paper", xanchor="left", yanchor="bottom", font=dict(size=10)))
+        annotations.append(dict(text="Robot ID", showarrow=False, x=0.16, y=0.84, xref="paper", yref="paper", xanchor="left", yanchor="bottom", font=dict(size=10)))
+
+        # Menu 3: Bezier Iteration Filter
+        bz_iter_buttons = [dict(label="İterasyon (Tümü)", method="restyle", args=[{"visible": [True] * len(cp_trace_indices)}, cp_trace_indices])]
+        bz_iter_buttons.append(dict(label="Gizle", method="restyle", args=[{"visible": [False] * len(cp_trace_indices)}, cp_trace_indices]))
+        all_iter_ids = sorted(list(set(info['iter_id'] for info in control_polygon_trace_info)))
+        for i_id in all_iter_ids:
+            visibility = [info['iter_id'] == i_id for info in control_polygon_trace_info]
+            bz_iter_buttons.append(dict(label=f"İterasyon {i_id}", method="restyle", args=[{"visible": visibility}, cp_trace_indices]))
+
+        # Menu 4: Bezier Robot Filter
+        bz_robot_buttons = [dict(label="Robot (Tümü)", method="restyle", args=[{"visible": [True] * len(cp_trace_indices)}, cp_trace_indices])]
+        bz_robot_buttons.append(dict(label="Gizle", method="restyle", args=[{"visible": [False] * len(cp_trace_indices)}, cp_trace_indices]))
+        all_agent_ids = sorted(list(set(info['agent_id'] for info in control_polygon_trace_info)))
+        for a_id in all_agent_ids:
+            visibility = [info['agent_id'] == a_id for info in control_polygon_trace_info]
+            bz_robot_buttons.append(dict(label=f"Robot R{a_id}", method="restyle", args=[{"visible": visibility}, cp_trace_indices]))
+
+        updatemenus.append(dict(type="dropdown", direction="down", x=0.01, xanchor="left", y=0.84, yanchor="top", pad={"r": 5, "t": 10}, showactive=False, buttons=bz_iter_buttons, bgcolor="rgba(230, 230, 230, 0.9)"))
+        updatemenus.append(dict(type="dropdown", direction="down", x=0.16, xanchor="left", y=0.84, yanchor="top", pad={"r": 5, "t": 10}, showactive=False, buttons=bz_robot_buttons, bgcolor="rgba(230, 230, 230, 0.9)"))
         
-        # Timestep'e göre filtreleme butonları
-        all_timesteps = sorted(list(set(p['timestep'] for p in plane_properties)))
-        for t in all_timesteps:
-            visibility = [p['timestep'] == t for p in plane_properties]
-            all_buttons.append(dict(label=f"Sadece Timestep T={t}",
-                                 method="restyle",
-                                 args=[{"visible": visibility}, surface_indices]))
-        
-        # Robot ID'ye göre filtreleme butonları
-        all_robot_ids = sorted(list(set(p['robot_id'] for p in plane_properties)))
-        for r_id in all_robot_ids:
-            visibility = [p['robot_id'] == r_id for p in plane_properties]
-            all_buttons.append(dict(label=f"Sadece Robot R{r_id}",
-                                 method="restyle",
-                                 args=[{"visible": visibility}, surface_indices]))
-
-        # Robot ID ve Timestep'e göre kombine filtreleme butonları
-        unique_combinations = sorted(list(set((p['robot_id'], p['timestep']) for p in plane_properties)))
-        for r_id, t in unique_combinations:
-            visibility = [(p['robot_id'] == r_id and p['timestep'] == t) for p in plane_properties]
-            all_buttons.append(dict(label=f"Sadece Robot R{r_id}, Timestep T={t}",
-                                 method="restyle",
-                                 args=[{"visible": visibility}, surface_indices]))
-
-    # Control Polygon buttons
-    if control_polygon_trace_info:
-        all_cp_trace_indices = [info[0] for info in control_polygon_trace_info]
-
-        all_buttons.append(dict(label="--- Kontrol Poligonları ---", method="relayout", args=[{"title.text": "3D Environment — İnteraktif Görselleştirme"}]))
-        all_buttons.append(dict(label="Tüm Kontrol Poligonlarını Gizle",
-                                 method="restyle",
-                                 args=[{"visible": [False] * len(all_cp_trace_indices)}, all_cp_trace_indices]))
-        
-        sorted_iterations = sorted(all_control_points_by_iteration.keys())
-        for iter_id_to_show in sorted_iterations:
-            visibility_for_this_iter = [info[1] == iter_id_to_show for info in control_polygon_trace_info]
-            
-            all_buttons.append(dict(label=f"Kontrol Poligonları Iterasyon {iter_id_to_show}",
-                                     method="restyle",
-                                     args=[{"visible": visibility_for_this_iter}, all_cp_trace_indices]))
-
-    if all_buttons:
-        # Default to first button (e.g., hide hyperplanes or hide control polygons)
-        active_button_index = 0 
-        updatemenus = [
-            dict(
-                type="dropdown",
-                direction="down",
-                active=active_button_index,
-                x=0.0, xanchor="left",
-                y=1.0, yanchor="top",
-                pad={"r": 10, "t": 10},
-                buttons=all_buttons,
-                showactive=True,
-            )
-        ]
-
     # ── Layout ───────────────────────────────────────────────────────
     margin = 1.0
     fig.update_layout(
@@ -534,7 +524,8 @@ def build_figure(env, vertices, edges, paths, hyperplanes, all_control_points_by
             zaxis=axis_style("Z (m)", [wmin[2]-margin, wmax[2]+margin]),
             camera=dict(eye=dict(x=1.5, y=-1.8, z=1.2)),
         ),
-        updatemenus=updatemenus
+        updatemenus=updatemenus,
+        annotations=annotations,
     )
 
     return fig

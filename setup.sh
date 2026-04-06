@@ -31,10 +31,13 @@ sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev libcdd-dev 
     sudo make install
 )
 
+
 (
-    start=$(date +%s.%N)
+    START=$(date)
     ./env_test  "/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/config/environment8.yaml"
-    end=$(date +%s.%N)
-    runtime=$(echo "$end - $start" | bc)
-    echo "Runtime: $runtime seconds"
+    END=$(date)
+    sec1=$(date -d "$START" +%s)
+    sec2=$(date -d "$END" +%s)
+    diff_seconds=$((sec2 - sec1))
+    echo "Runtime: $diff_seconds seconds"
 )

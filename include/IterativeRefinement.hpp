@@ -27,13 +27,21 @@ public:
         : graph(graph), discreteSchedule(discreteSchedule), robotModel(robotModel), environment(environment) {}
 
     std::vector<std::vector<Eigen::Vector3d>> refine(double T_total, int num_iterations = 6) {
+        int N = discreteSchedule.waypoint.size();
+        std::vector<int> goal_pieces(N);
+        for(int i=0; i < N; i++){
+            // path.size()-1 = robotun goal'a ulaştığı timestep
+            // O timestep'ten itibaren tüm piece'ler goal'da sabit kalmalı
+            goal_pieces[i] = discreteSchedule.waypoint[i].size() - 1;
+        }
+        
         // iterasyon 0: HyperPlane kaynağı = discrete plan segmentleri
         HyperPlaneSeparator separator(graph, robotModel, discreteSchedule, environment);
         SafePolyhedron safe_poly = separator.compute();
 
         BezierCurve bezier(D, C, &environment);
         auto current_trajectories = bezier.compute(safe_poly, user_parameter,
-                                                    discreteSchedule.K, T_total);
+                                                    discreteSchedule.K, T_total, goal_pieces);
         
         // Save initial control points (iteration 0)
         saveControlPointsToCSV(current_trajectories, "control_points_iter_0.csv");
@@ -43,8 +51,10 @@ public:
 
             SafePolyhedron new_poly = separator.compute(sampled_points);
 
-            auto new_trajectories = bezier.compute(new_poly, user_parameter,
-                                                discreteSchedule.K, T_total);
+            SafePolyhedron combined_poly = intersectPolyhedra(new_poly, safe_poly);
+
+            auto new_trajectories = bezier.compute(combined_poly, user_parameter,
+                                                discreteSchedule.K, T_total, goal_pieces);
 
             current_trajectories = new_trajectories;
             
@@ -54,6 +64,27 @@ public:
 
         return current_trajectories;
     }
+
+    SafePolyhedron intersectPolyhedra(const SafePolyhedron& a, const SafePolyhedron& b) {
+        // a ve b'nin planes yapısı: planes[agent][timestep_k] → vector<HyperPlane>
+        size_t num_agents = a.planes.size();
+        size_t K = a.planes[0].size();
+
+        std::vector<std::vector<std::vector<HyperPlane>>> combined(num_agents);
+        for (size_t i = 0; i < num_agents; ++i) {
+            combined[i].resize(K);
+            for (size_t k = 0; k < K; ++k) {
+                // a'nın tüm plane'leri
+                combined[i][k] = a.planes[i][k];
+                // b'nin plane'lerini ekle
+                combined[i][k].insert(combined[i][k].end(),
+                                      b.planes[i][k].begin(),
+                                      b.planes[i][k].end());
+            }
+        }
+        return SafePolyhedron(combined);
+    }
+
 
     // Moved implementation from main.cpp
     void saveControlPointsToCSV(const std::vector<std::vector<Eigen::Vector3d>>& all_control_points,
@@ -95,7 +126,7 @@ private:
                 std::vector<Eigen::Vector3d> control_points(trajectories[agent].begin() + k*(D+1),
                                                 trajectories[agent].begin() + k*(D+1) + D+1);
                 for (int s = 0; s < S; ++s) {
-                    double t = (double)s / (S - 1);
+                    double t = (double)s / S;
                     result[agent][k].push_back(sampleBezier(t, control_points));
                 }
             }

@@ -113,7 +113,8 @@ struct BezierCurve{
                                                         int agent_id, // Use agent_id to get start/goal from environment
                                                         const std::vector<double>& user_parameter, // gamma_c weights
                                                         int K, // number of pieces
-                                                        double T_total){ // total time
+                                                        double T_total,
+                                                        int goal_piece){ // total time
         double T_piece = T_total / K;
 
         const int n_vars_per_dim = K * (D + 1);
@@ -181,6 +182,23 @@ struct BezierCurve{
         A_triplets.emplace_back(constraint_idx, last_cp_idx, 1.0); l_vec.push_back(goal_pos.x());  u_vec.push_back(goal_pos.x()); constraint_idx++;
         A_triplets.emplace_back(constraint_idx, last_cp_idx + n_vars_per_dim, 1.0);  l_vec.push_back(goal_pos.y());  u_vec.push_back(goal_pos.y());  constraint_idx++;
         A_triplets.emplace_back(constraint_idx, last_cp_idx + 2*n_vars_per_dim, 1.0);  l_vec.push_back(goal_pos.z());  u_vec.push_back(goal_pos.z());  constraint_idx++;
+
+        // Goal pinning constraints: bezier curvelar robot rotasından çok sapmasın diye
+        for (int k = goal_piece; k < K; ++k) {
+            for (int d = 0; d <= D; ++d) {
+                int cp_idx = k * (D + 1) + d;
+                // x
+                A_triplets.emplace_back(constraint_idx, cp_idx, 1.0);
+                l_vec.push_back(goal_pos.x()); u_vec.push_back(goal_pos.x()); constraint_idx++;
+                // y
+                A_triplets.emplace_back(constraint_idx, cp_idx + n_vars_per_dim, 1.0);
+                l_vec.push_back(goal_pos.y()); u_vec.push_back(goal_pos.y()); constraint_idx++;
+                // z
+                A_triplets.emplace_back(constraint_idx, cp_idx + 2*n_vars_per_dim, 1.0);
+                l_vec.push_back(goal_pos.z()); u_vec.push_back(goal_pos.z()); constraint_idx++;
+            }
+        }
+
 
         // c. Continuity Constraints up to derivative C
         for (int k = 1; k < K; ++k) { // for each junction
@@ -540,19 +558,19 @@ struct BezierCurve{
     std::vector<std::vector<Eigen::Vector3d>> compute(  const SafePolyhedron& safe_polyhedron,
                                                         const std::vector<double>& user_parameter, // gamma_c weights
                                                         int K, // number of pieces
-                                                        double T_total){
+                                                        double T_total,
+                                                        const std::vector<int>& goal_pieces){
 
         if (!environment) {
             throw std::runtime_error("Environment pointer is null in BezierCurve::compute.");
         }
-        std::vector<std::vector<Eigen::Vector3d>> all_controll_points;
-        all_controll_points.resize(environment->agents.size());
-        for(size_t i = 0; i < environment->agents.size(); i++){
-            std::vector<Eigen::Vector3d> control_points = compute_control_points(safe_polyhedron, i, user_parameter, K, T_total);
-            all_controll_points[i] = control_points;
+        std::vector<std::vector<Eigen::Vector3d>> all_control_points;
+        all_control_points.resize(environment->agents.size());
+        for (size_t i = 0; i < environment->agents.size(); i++) {
+            all_control_points[i] = compute_control_points(
+                safe_polyhedron, i, user_parameter, K, T_total, goal_pieces[i]); // ← ekle
         }
-
-        return all_controll_points;
+        return all_control_points;
     }
     
 };

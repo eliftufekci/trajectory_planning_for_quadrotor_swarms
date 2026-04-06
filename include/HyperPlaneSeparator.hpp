@@ -117,7 +117,7 @@ public:
                         points_j.col(s) = samples[j][k][s];
                     }
 
-                    HyperPlane plane = computeSVM(points_i, points_j);
+                    HyperPlane plane = computeSVM(points_i, points_j, false);
                     plane.separated_from_type = 0; // Robot
                     plane.separated_from_id = j;
                     planes[i][k].push_back(plane);
@@ -140,7 +140,7 @@ public:
                     
                     Eigen::MatrixXd obstacle_matrix = getObstacleCorners(obstacle.min, obstacle.max);
                     
-                    HyperPlane plane = computeSVM(points_i, obstacle_matrix);
+                    HyperPlane plane = computeSVM(points_i, obstacle_matrix, true);
                     plane.separated_from_type = 1; // Obstacle
                     plane.separated_from_id = obs_idx;
                     planes[i][k].push_back(plane);
@@ -178,13 +178,11 @@ public:
 
     // İki nokta kümesini (burada iki segmentin uç noktaları) ayıran
     // maksimum marjlı hiperdüzlemi bulan SVM (QP) çözücü.    
-    HyperPlane computeSVM( const Eigen::MatrixXd& points_i, const Eigen::MatrixXd& points_j){
+    HyperPlane computeSVM( const Eigen::MatrixXd& points_i, const Eigen::MatrixXd& points_j, bool is_obstacle = false){
         const int m_i = points_i.cols();
         const int m_j = points_j.cols();
         const int n_vars = 4; // [nx, ny, nz, d]
         const int n_constraints = m_i + m_j;
-
-        bool is_obstacle = (points_j.cols() > 2);
 
         // --- 1. Hessian Matrisi (P): minimize 0.5 * x'Px ---
         Eigen::SparseMatrix<double> P(n_vars, n_vars);
