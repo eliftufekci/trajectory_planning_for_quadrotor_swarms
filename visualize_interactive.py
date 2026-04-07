@@ -99,6 +99,28 @@ def load_hyperplanes_csv(path):
                 "separated_from_id": int(row["separated_from_id"]) if "separated_from_id" in row else -1,
             })
     return planes
+
+def load_hyperplanes_by_iteration(directory, pattern="hyperplanes_iter_*.csv"):
+    """
+    Loads hyperplanes from multiple CSV files, each representing an iteration.
+    Returns: {iteration_id: [list_of_planes]}
+    """
+    all_hyperplanes = {}
+    import glob
+    file_paths = glob.glob(os.path.join(directory, pattern))
+    
+    for path in file_paths:
+        filename = os.path.basename(path)
+        try:
+            iteration_str = filename.split('_iter_')[1].split('.')[0]
+            iteration_id = int(iteration_str)
+            # Use the existing single-file loader
+            planes_for_iter = load_hyperplanes_csv(path)
+            if planes_for_iter:
+                all_hyperplanes[iteration_id] = planes_for_iter
+        except (IndexError, ValueError):
+            print(f"Warning: Could not parse iteration number from filename: {filename}")
+    return all_hyperplanes
 # ─────────────────────────────────────────────
 #  AABB → 8 köşe noktası
 # ─────────────────────────────────────────────
@@ -219,6 +241,14 @@ OBS_COLORS   = [
     "rgba(155,89,182,0.7)",
     "rgba(26,188,156,0.7)",
 ]
+HYPERPLANE_COLORS = [
+    'rgba(142, 68, 173, 0.5)', # Iter 0 (purple)
+    'rgba(41, 128, 185, 0.5)', # Iter 1 (blue)
+    'rgba(39, 174, 96, 0.5)',  # Iter 2 (green)
+    'rgba(243, 156, 18, 0.5)', # Iter 3 (orange)
+    'rgba(211, 84, 0, 0.5)',   # Iter 4 (dark orange)
+    'rgba(192, 57, 43, 0.5)',  # Iter 5 (red)
+]
 AGENT_COLORS = ["#2ecc71", "#3498db", "#f1c40f", "#e91e63"]
 
 BG_COLOR   = "white"
@@ -248,7 +278,7 @@ def axis_style(title, axis_range):
 # ─────────────────────────────────────────────
 #  Ana figür
 # ─────────────────────────────────────────────
-def build_figure(env, vertices, edges, paths, hyperplanes, all_control_points_by_iteration):
+def build_figure(env, vertices, edges, paths, all_hyperplanes_by_iteration, all_control_points_by_iteration):
     fig  = go.Figure()
     wmin = np.array(env["world_min"])
     wmax = np.array(env["world_max"])
@@ -396,87 +426,101 @@ def build_figure(env, vertices, edges, paths, hyperplanes, all_control_points_by
                 fig.add_trace(trace)
                 control_polygon_trace_info.append({'trace_idx': len(fig.data) - 1, 'iter_id': iter_id, 'agent_id': agent_id})
 
-    # ── Hiper Düzlemler (Hyperplanes) ────────────────────────────────
-    # Bu liste, her bir hiper düzlemin robot_id ve timestep bilgilerini saklar.
-    # Bu sayede filtreleme butonları için görünürlük listeleri oluşturulabilir.
-    plane_properties = []
-    if hyperplanes:
-        is_first_plane = True # Legend'da tek bir girdi olması için
-        for p_data in hyperplanes:
-            # Varsayılan olarak tüm düzlemleri gizli başlat
-            is_visible = False
+    # ── Hiper Düzlemler (Hyperplanes) - Iteration-based ────────────────────────────────
+    plane_properties_by_iter = {}
+    if all_hyperplanes_by_iteration:
+        sorted_iter_ids = sorted(all_hyperplanes_by_iteration.keys())
+        for iter_id in sorted_iter_ids:
+            hyperplanes = all_hyperplanes_by_iteration[iter_id]
+            if not hyperplanes:
+                continue
 
-            # Düzlem için açıklayıcı bir isim oluştur
-            from_type = p_data.get('separated_from_type', -1)
-            from_id = p_data.get('separated_from_id', -1)
-            opponent_str = ""
-            if from_type == 0: # Robot
-                opponent_str = f"-R{from_id}"
-            elif from_type == 1: # Obstacle
-                # Engel ID'leri 0'dan başladığı için görselde 1'den başlatıyoruz
-                opponent_str = f"-Obs{from_id + 1}"
+            plane_properties_by_iter[iter_id] = []
+            is_first_plane_in_iter = True
             
-            # Hover text için kullanılacak bireysel isim
-            individual_plane_name = f"R{p_data['robot_id']}{opponent_str} T{p_data['timestep']}"
+            for p_data in hyperplanes:
+                from_type = p_data.get('separated_from_type', -1)
+                from_id = p_data.get('separated_from_id', -1)
+                opponent_str = ""
+                if from_type == 0:
+                    opponent_str = f"-R{from_id}"
+                elif from_type == 1:
+                    opponent_str = f"-Obs{from_id + 1}"
+                
+                individual_plane_name = f"R{p_data['robot_id']}{opponent_str} T{p_data['timestep']} (Iter {iter_id})"
+                
+                color = HYPERPLANE_COLORS[iter_id % len(HYPERPLANE_COLORS)]
 
-            trace = hyperplane_trace(p_data, name=individual_plane_name, scene_center=scene_center, size=10.0,
-                color='rgba(142, 68, 173, 0.5)', # Mor tonu (varsayılan)
-                opacity=0.4,
-                visible=is_visible
-            )
+                trace = hyperplane_trace(p_data, name=individual_plane_name, scene_center=scene_center, size=10.0,
+                    color=color,
+                    opacity=0.4,
+                    visible=False # Start hidden
+                )
 
-            # Legend'da gruplama için ayarlar
-            trace.name = "Hyperplanes"
-            trace.legendgroup = "hyperplanes"
-            trace.showlegend = is_first_plane
-            fig.add_trace(trace)
-            is_first_plane = False
+                trace.name = f"Hyperplanes (Iter {iter_id})"
+                trace.legendgroup = f"hyperplanes_iter_{iter_id}"
+                trace.showlegend = is_first_plane_in_iter
+                fig.add_trace(trace)
+                is_first_plane_in_iter = False
 
-            # Filtreleme için düzlem özelliklerini sakla
-            plane_properties.append({'robot_id': p_data['robot_id'], 'timestep': p_data['timestep'], 'trace_idx': len(fig.data) - 1})
+                plane_properties_by_iter[iter_id].append({
+                    'robot_id': p_data['robot_id'], 
+                    'timestep': p_data['timestep'], 
+                    'trace_idx': len(fig.data) - 1
+                })
 
     # ── İnteraktif Dropdown Menüler ────────────────────────────────
     updatemenus = []
     annotations = []
+    y_pos = 0.99 # Top of the available space for menus
 
-    # --- Hyperplane Filtresi ---
-    # Kullanıcı isteği üzerine eski, tekli liste yapısı referans olarak buraya eklendi
-    # ve yorum satırına alındı. Bu bölüm aktif değildir.
-    #
-    # all_buttons = []
-    # if hyperplanes:
-    #     surface_indices = [p['trace_idx'] for p in plane_properties]
-    #     all_buttons.append(dict(label="Düzlemleri Gizle",
-    #                          method="restyle",
-    #                          args=[{"visible": [False] * len(surface_indices)}, surface_indices]))
-    #     all_buttons.append(dict(label="Tüm Düzlemleri Göster",
-    #                          method="restyle",
-    #                          args=[{"visible": [True] * len(surface_indices)}, surface_indices]))
-    #     all_timesteps = sorted(list(set(p['timestep'] for p in plane_properties)))
-    #     for t in all_timesteps:
-    #         visibility = [p['timestep'] == t for p in plane_properties]
-    #         all_buttons.append(dict(label=f"Sadece Timestep T={t}",
-    #                              method="restyle",
-    #                              args=[{"visible": visibility}, surface_indices]))
-    #     all_robot_ids = sorted(list(set(p['robot_id'] for p in plane_properties)))
-    #     for r_id in all_robot_ids:
-    #         visibility = [p['robot_id'] == r_id for p in plane_properties]
-    #         all_buttons.append(dict(label=f"Sadece Robot R{r_id}",
-    #                              method="restyle",
-    #                              args=[{"visible": visibility}, surface_indices]))
-    #     unique_combinations = sorted(list(set((p['robot_id'], p['timestep']) for p in plane_properties)))
-    #     for r_id, t in unique_combinations:
-    #         visibility = [(p['robot_id'] == r_id and p['timestep'] == t) for p in plane_properties]
-    #         all_buttons.append(dict(label=f"Sadece Robot R{r_id}, Timestep T={t}",
-    #                              method="restyle",
-    #                              args=[{"visible": visibility}, surface_indices]))
+    # --- Hyperplane Filters (per iteration) ---
+    if plane_properties_by_iter:
+        sorted_iter_ids = sorted(plane_properties_by_iter.keys())
+        for iter_id in sorted_iter_ids:
+            plane_properties = plane_properties_by_iter[iter_id]
+            surface_indices = [p['trace_idx'] for p in plane_properties]
+            
+            buttons = []
+            buttons.append(dict(label="Gizle", method="restyle", args=[{"visible": [False] * len(surface_indices)}, surface_indices]))
+            buttons.append(dict(label="Tümünü Göster", method="restyle", args=[{"visible": [True] * len(surface_indices)}, surface_indices]))
+            
+            all_timesteps = sorted(list(set(p['timestep'] for p in plane_properties)))
+            for t in all_timesteps:
+                visibility = [p['timestep'] == t for p in plane_properties]
+                buttons.append(dict(label=f"Sadece T={t}", method="restyle", args=[{"visible": visibility}, surface_indices]))
+            
+            all_robot_ids = sorted(list(set(p['robot_id'] for p in plane_properties)))
+            for r_id in all_robot_ids:
+                visibility = [p['robot_id'] == r_id for p in plane_properties]
+                buttons.append(dict(label=f"Sadece R={r_id}", method="restyle", args=[{"visible": visibility}, surface_indices]))
+            
+            unique_combinations = sorted(list(set((p['robot_id'], p['timestep']) for p in plane_properties)))
+            for r_id, t in unique_combinations:
+                visibility = [(p['robot_id'] == r_id and p['timestep'] == t) for p in plane_properties]
+                buttons.append(dict(label=f"R{r_id}, T={t}", method="restyle", args=[{"visible": visibility}, surface_indices]))
+
+            annotations.append(dict(text=f"<b>Düzlem Filtresi (İter {iter_id}):</b>", showarrow=False, x=0.01, y=y_pos, xref="paper", yref="paper", xanchor="left", yanchor="top", font=dict(size=12)))
+            updatemenus.append(
+                dict(
+                    type="dropdown", direction="down", x=0.01, xanchor="left",
+                    y=y_pos - 0.04, yanchor="top",
+                    pad={"r": 5, "t": 10}, showactive=True, buttons=buttons,
+                    bgcolor="rgba(230, 230, 230, 0.9)"
+                )
+            )
+            y_pos -= 0.1 # Move down for the next menu block
 
     # --- Bezier Control Polygon Menus ---
     if 'control_polygon_trace_info' in locals() and control_polygon_trace_info:
         cp_trace_indices = [info['trace_idx'] for info in control_polygon_trace_info]
-        annotations.append(dict(text="<b>Bézier Filtreleri:</b>", showarrow=False, x=0.01, y=0.89, xref="paper", yref="paper", xanchor="left", yanchor="top", font=dict(size=12)))
-        annotations.append(dict(text="İterasyon", showarrow=False, x=0.01, y=0.84, xref="paper", yref="paper", xanchor="left", yanchor="bottom", font=dict(size=10)))
-        annotations.append(dict(text="Robot ID", showarrow=False, x=0.16, y=0.84, xref="paper", yref="paper", xanchor="left", yanchor="bottom", font=dict(size=10)))
+        
+        y_pos_bezier_title = y_pos if y_pos < 0.88 else 0.88 # Ensure it doesn't overlap if there are few hyperplane menus
+        annotations.append(dict(text="<b>Bézier Filtreleri:</b>", showarrow=False, x=0.01, y=y_pos_bezier_title, xref="paper", yref="paper", xanchor="left", yanchor="top", font=dict(size=12)))
+        
+        y_pos_bezier_dropdowns = y_pos_bezier_title - 0.05
+        annotations.append(dict(text="İterasyon", showarrow=False, x=0.01, y=y_pos_bezier_dropdowns, xref="paper", yref="paper", xanchor="left", yanchor="bottom", font=dict(size=10)))
+        annotations.append(dict(text="Robot ID", showarrow=False, x=0.16, y=y_pos_bezier_dropdowns, xref="paper", yref="paper", xanchor="left", yanchor="bottom", font=dict(size=10)))
 
         # Menu 3: Bezier Iteration Filter
         bz_iter_buttons = [dict(label="İterasyon (Tümü)", method="restyle", args=[{"visible": [True] * len(cp_trace_indices)}, cp_trace_indices])]
@@ -494,8 +538,8 @@ def build_figure(env, vertices, edges, paths, hyperplanes, all_control_points_by
             visibility = [info['agent_id'] == a_id for info in control_polygon_trace_info]
             bz_robot_buttons.append(dict(label=f"Robot R{a_id}", method="restyle", args=[{"visible": visibility}, cp_trace_indices]))
 
-        updatemenus.append(dict(type="dropdown", direction="down", x=0.01, xanchor="left", y=0.84, yanchor="top", pad={"r": 5, "t": 10}, showactive=False, buttons=bz_iter_buttons, bgcolor="rgba(230, 230, 230, 0.9)"))
-        updatemenus.append(dict(type="dropdown", direction="down", x=0.16, xanchor="left", y=0.84, yanchor="top", pad={"r": 5, "t": 10}, showactive=False, buttons=bz_robot_buttons, bgcolor="rgba(230, 230, 230, 0.9)"))
+        updatemenus.append(dict(type="dropdown", direction="down", x=0.01, xanchor="left", y=y_pos_bezier_dropdowns, yanchor="top", pad={"r": 5, "t": 10}, showactive=False, buttons=bz_iter_buttons, bgcolor="rgba(230, 230, 230, 0.9)"))
+        updatemenus.append(dict(type="dropdown", direction="down", x=0.16, xanchor="left", y=y_pos_bezier_dropdowns, yanchor="top", pad={"r": 5, "t": 10}, showactive=False, buttons=bz_robot_buttons, bgcolor="rgba(230, 230, 230, 0.9)"))
         
     # ── Layout ───────────────────────────────────────────────────────
     margin = 1.0
@@ -543,7 +587,6 @@ def main():
     edge_csv = os.path.join(build, "edges.csv")
     paths_csv = os.path.join(build, "paths.csv")
     # control_points_csv = os.path.join(build, "control_points.csv") # Now loads multiple files
-    hyperplanes_csv = os.path.join(build, "hyperplanes.csv")
 
     if not os.path.exists(env_csv):
         print("HATA: environment_data.csv bulunamadı — önce C++ programını çalıştır.")
@@ -554,7 +597,7 @@ def main():
     vertices = load_vertices_csv(vert_csv) if os.path.exists(vert_csv) else {} 
     edges    = load_edges_csv(edge_csv)    if os.path.exists(edge_csv) else [] 
     paths    = load_paths_csv(paths_csv)
-    hyperplanes = load_hyperplanes_csv(hyperplanes_csv)
+    all_hyperplanes_by_iteration = load_hyperplanes_by_iteration(build)
     
     # Load all control points by iteration
     all_control_points_by_iteration = load_control_points_csv(build, "control_points_iter_*.csv")
@@ -566,13 +609,14 @@ def main():
     if all_control_points_by_iteration:
         total_cp_count = sum(len(agent_cps) for iter_cps in all_control_points_by_iteration.values() for agent_cps in iter_cps.values())
         first_iteration_cps = next(iter(all_control_points_by_iteration.values())) # Get agents from first iteration
-        print(f"  Kontrol Noktaları: {total_cp_count} (for {len(first_iteration_cps)} agents across {len(all_control_points_by_iteration)} iterations)")
-    if hyperplanes:
-        print(f"  Düzlem : {len(hyperplanes)}")
+        print(f"  Kontrol Noktaları: {total_cp_count} ({len(first_iteration_cps)} ajan, {len(all_control_points_by_iteration)} iterasyon)")
+    if all_hyperplanes_by_iteration:
+        print(f"  Düzlem Setleri: {len(all_hyperplanes_by_iteration)}")
     if paths:
         print(f"  Yol    : {len(paths)}")
 
-    fig = build_figure(env, vertices, edges, paths, hyperplanes, all_control_points_by_iteration)
+    all_hyperplanes_by_iteration = []
+    fig = build_figure(env, vertices, edges, paths, all_hyperplanes_by_iteration, all_control_points_by_iteration)
     out_filename = "solution_with_planes.html" if paths else "environment_interactive.html"
     out = os.path.join(base, out_filename)
     fig.write_html(out, include_plotlyjs="cdn")

@@ -8,6 +8,8 @@
 #include "SafePolyhedron.hpp"
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+#include <fstream>
+#include <iostream>
 #include <cstddef>
 #include <unistd.h>
 #include <vector>
@@ -39,6 +41,9 @@ public:
         HyperPlaneSeparator separator(graph, robotModel, discreteSchedule, environment);
         SafePolyhedron safe_poly = separator.compute();
 
+        // Iterasyon 0 hiperdüzlemlerini kaydet
+        saveSafePolyhedronCSV(safe_poly, "hyperplanes_iter_0.csv");
+
         BezierCurve bezier(D, C, &environment);
         auto current_trajectories = bezier.compute(safe_poly, user_parameter,
                                                     discreteSchedule.K, T_total, goal_pieces);
@@ -52,6 +57,8 @@ public:
             SafePolyhedron new_poly = separator.compute(sampled_points);
 
             SafePolyhedron combined_poly = intersectPolyhedra(new_poly, safe_poly);
+
+            saveSafePolyhedronCSV(combined_poly, "hyperplanes_iter_" + std::to_string(iter) + ".csv");
 
             auto new_trajectories = bezier.compute(combined_poly, user_parameter,
                                                 discreteSchedule.K, T_total, goal_pieces);
@@ -85,6 +92,29 @@ public:
         return SafePolyhedron(combined);
     }
 
+    void saveSafePolyhedronCSV(const SafePolyhedron& poly, const std::string& path) const {
+        std::ofstream f(path);
+        if (!f) {
+            std::cerr << "HATA: Güvenli Polyhedron dosyası açılamadı: " << path << std::endl;
+            return;
+        }
+        f << "robot_id,timestep,nx,ny,nz,d,ellipsoid_offset,separated_from_type,separated_from_id\n";
+        for (size_t i = 0; i < poly.planes.size(); ++i) {
+            for (size_t k = 0; k < poly.planes[i].size(); ++k) {
+                for (const auto& plane : poly.planes[i][k]) {
+                    f << i << "," << k << ","
+                      << plane.normal_vector.x() << ","
+                      << plane.normal_vector.y() << ","
+                      << plane.normal_vector.z() << ","
+                      << plane.d << ","
+                      << plane.ellipsoid_offset << ","
+                      << plane.separated_from_type << ","
+                      << plane.separated_from_id << "\n";
+                }
+            }
+        }
+        std::cout << "Kaydedildi: " << path << "\n";
+    }
 
     // Moved implementation from main.cpp
     void saveControlPointsToCSV(const std::vector<std::vector<Eigen::Vector3d>>& all_control_points,

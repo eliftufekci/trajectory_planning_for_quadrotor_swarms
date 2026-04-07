@@ -35,7 +35,7 @@ public:
                     Eigen::MatrixXd segment_j(3, 2);
                     segment_j << graph.getVertex(getWaypoint(j, k)).pos, graph.getVertex(getWaypoint(j, k+1)).pos;
 
-                    HyperPlane plane = computeSVM(segment_i, segment_j);
+                    HyperPlane plane = computeSVM(segment_i, segment_j, false);
                     plane.separated_from_type = 0; // Robot
                     plane.separated_from_id = j;
                     planes[i][k].push_back(plane);
@@ -45,16 +45,23 @@ public:
             }
         }
         // robot - obstacle
-        for(int k=0; k < discreteSchedule.K; k++){
-            for(int i=0; i < waypoint.size(); i++){ // robot i
-                for(size_t obs_idx = 0; obs_idx < environment.obstacles.size(); ++obs_idx) {
+        for(int k = 0; k < discreteSchedule.K; k++){
+            for(int i = 0; i < waypoint.size(); i++){
+                Eigen::Vector3d p_start = graph.getVertex(getWaypoint(i, k)).pos;
+                Eigen::Vector3d p_end   = graph.getVertex(getWaypoint(i, k+1)).pos;
+                
+                // Segment'e yakın obstacle'ları octree'den bul
+                auto nearby_obs = findNearbyObstacles(p_start, p_end, 1.0); // 1.0m margin
+                
+                for(size_t obs_idx : nearby_obs) {
                     const auto& obstacle = environment.obstacles[obs_idx];
+
                     Eigen::MatrixXd segment_i(3, 2);
                     segment_i << graph.getVertex(getWaypoint(i, k)).pos, graph.getVertex(getWaypoint(i, k+1)).pos;
                     
                     Eigen::MatrixXd obstacle_matrix = getObstacleCorners(obstacle.min, obstacle.max);
                     
-                    HyperPlane plane = computeSVM(segment_i, obstacle_matrix);
+                    HyperPlane plane = computeSVM(segment_i, obstacle_matrix, true);
                     plane.separated_from_type = 1; // Obstacle
                     plane.separated_from_id = obs_idx;
                     planes[i][k].push_back(plane);
@@ -130,16 +137,29 @@ public:
         // Robot-obstacle separation from samples
         for(size_t k = 0; k < K; ++k) {
             for(size_t i = 0; i < num_agents; ++i) {
-                for(size_t obs_idx = 0; obs_idx < environment.obstacles.size(); ++obs_idx) {
-                    const auto& obstacle = environment.obstacles[obs_idx];
-                    
+                if (S == 0) continue; // Örnek nokta yoksa bu adımı atla.
+
+                // Yörünge parçasını (sample'ları) içeren sınırlayıcı kutuyu (AABB) hesapla.
+                Eigen::Vector3d samples_min = samples[i][k][0];
+                Eigen::Vector3d samples_max = samples[i][k][0];
+                for(size_t s = 1; s < S; ++s) {
+                    samples_min = samples_min.cwiseMin(samples[i][k][s]);
+                    samples_max = samples_max.cwiseMax(samples[i][k][s]);
+                }
+
+                // Octree kullanarak bu kutuya yakın olan engelleri verimli bir şekilde bul.
+                auto nearby_obs = findNearbyObstacles(samples_min, samples_max, 1.0); // 1.0m margin
+
+                for(size_t obs_idx : nearby_obs) {
+                    const auto& obstacle = environment.obstacles.at(obs_idx);
+
                     Eigen::MatrixXd points_i(3, S);
                     for(size_t s = 0; s < S; ++s) {
                         points_i.col(s) = samples[i][k][s];
                     }
-                    
+
                     Eigen::MatrixXd obstacle_matrix = getObstacleCorners(obstacle.min, obstacle.max);
-                    
+
                     HyperPlane plane = computeSVM(points_i, obstacle_matrix, true);
                     plane.separated_from_type = 1; // Obstacle
                     plane.separated_from_id = obs_idx;
@@ -147,6 +167,8 @@ public:
                 }
             }
         }
+
+
 
         // robot - environment boundaries
         for(size_t k = 0; k < K; ++k) {
@@ -275,6 +297,40 @@ private:
     const DiscreteSchedule& discreteSchedule;
     const RobotModel& robotModel;
     const Environment& environment;
+
+    std::vector<size_t> findNearbyObstacles(const Eigen::Vector3d& p_start, const Eigen::Vector3d& p_end, double margin) {
+
+        // 1. Segment'in bounding box'ını hesapla + margin ekle
+        Eigen::Vector3d box_min_v = p_start.cwiseMin(p_end).array() - margin;
+        Eigen::Vector3d box_max_v = p_start.cwiseMax(p_end).array() + margin;
+        octomap::point3d bbx_min(box_min_v.x(), box_min_v.y(), box_min_v.z());
+        octomap::point3d bbx_max(box_max_v.x(), box_max_v.y(), box_max_v.z());
+
+
+        std::vector<size_t> result;
+
+        // 2. Octree'de bu box ile kesişen occupied node'ları sorgula
+        for(auto it = environment.tree->begin_leafs_bbx(bbx_min, bbx_max); it != environment.tree->end_leafs_bbx(); ++it){
+            if (!environment.tree->isNodeOccupied(*it)) continue;
+            
+            Eigen::Vector3d node_center(it.getX(), it.getY(), it.getZ());
+            for (size_t obs_idx = 0; obs_idx < environment.obstacles.size(); ++obs_idx) {
+                if (environment.obstacles[obs_idx].contains(node_center)) {
+                    result.push_back(obs_idx);
+                    // Bir düğüm merkezinin yalnızca bir engele ait olabileceğini
+                    // varsayarak döngüden çıkıyoruz. Bu, verimliliği artırır.
+                    break;
+                }
+            }
+        }
+
+        // Duplicate index'leri temizle
+        std::sort(result.begin(), result.end());
+        result.erase(std::unique(result.begin(), result.end()), result.end());
+
+        return result;
+    }
+
 
     int getWaypoint(size_t agent_idx, int time) const {
         const auto& path = discreteSchedule.waypoint[agent_idx];
