@@ -1,5 +1,4 @@
 #pragma once
-#include "DiscreteSchedule.hpp"
 #include "Environment.hpp"
 #include "Graph.hpp"
 #include "HyperPlane.hpp"

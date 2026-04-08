@@ -11,6 +11,7 @@
 #include "SPARSRoadMapGenerator.hpp"
 #include "FCLConflictAnnotation.hpp"
 #include "SafePolyhedron.hpp"
+#include "SubdividedSchedule.hpp"
 #include "SweptConflictAnnotation.hpp"
 #include "MAPFCSolver.hpp"
 
@@ -53,11 +54,11 @@ int main(int argc, char* argv[]) {
 
     Environment env = Environment::loadFromYAML(yaml_path);
     RobotModel robot;
-    double step_size = 0.3;
+    double step_size = 0.5;
     FCLCollisionChecker fclCollisionChecker(env, robot);
 
-    // GridRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker, step_size);
-    SPARSRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker);
+    GridRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker, step_size);
+    // SPARSRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker);
 
     Graph environment_graph;
     try {
@@ -98,15 +99,16 @@ int main(int argc, char* argv[]) {
     MPAFCSolver solver(environment_graph, swept_conflict_annotation);
     std::cout << "mapfc solver worked succesfully\n";
     DiscreteSchedule schedule = solver.solve();
+    SubdividedSchedule subdividedSchedule = schedule.subdivide(environment_graph);
 
     std::cout << "Makespan (K): " << schedule.K << "\n";
     for (size_t i = 0; i < schedule.waypoint.size(); ++i) {
         std::cout << "Robot " << i << " path length: " << schedule.waypoint[i].size() << "\n";
     }
 
-    IterativeRefinement iterativeRefinement(environment_graph, schedule, robot, env);
+    IterativeRefinement iterativeRefinement(environment_graph, subdividedSchedule, robot, env);
     int num_iterations = 6;
-    std::vector<std::vector<Eigen::Vector3d>> control_points = iterativeRefinement.refine(static_cast<double>(schedule.K), num_iterations);
+    std::vector<std::vector<Eigen::Vector3d>> control_points = iterativeRefinement.refine(static_cast<double>(subdividedSchedule.K), num_iterations);
 
     // Save the continuous trajectories for visualization
     iterativeRefinement.saveControlPointsToCSV(control_points, "control_points.csv");

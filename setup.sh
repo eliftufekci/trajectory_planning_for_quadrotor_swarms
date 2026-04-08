@@ -34,7 +34,7 @@ sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev libcdd-dev 
 
 (
     START=$(date)
-    ./env_test  "/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/config/environment8.yaml"
+    ./env_test  "/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/config/environment9.yaml"
     END=$(date)
     sec1=$(date -d "$START" +%s)
     sec2=$(date -d "$END" +%s)

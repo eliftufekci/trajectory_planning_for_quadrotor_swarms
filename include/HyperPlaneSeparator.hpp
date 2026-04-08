@@ -1,39 +1,39 @@
 #pragma once
-#include "DiscreteSchedule.hpp"
 #include "Environment.hpp"
 #include "Graph.hpp"
 #include "HyperPlane.hpp"
 #include "MAPFCTypes.hpp"
 #include "SafePolyhedron.hpp"
+#include "SubdividedSchedule.hpp"
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <vector>
 #include <OsqpEigen/Solver.hpp>
+#include "RobotModel.hpp"
 
 class HyperPlaneSeparator{
 public:
     
-    HyperPlaneSeparator(const Graph& graph, const RobotModel& robotModel, const DiscreteSchedule& discreteSchedule, const Environment& environment)
-        : graph(graph), discreteSchedule(discreteSchedule), robotModel(robotModel), environment(environment) {}
+    HyperPlaneSeparator(const Graph& graph, const RobotModel& robotModel, const SubdividedSchedule& subdividedSchedule, const Environment& environment)
+        : graph(graph), subdividedSchedule(subdividedSchedule), robotModel(robotModel), environment(environment) {}
 
     // Tüm schedule için tüm (i,j,k) hyperplane'lerini hesapla
     SafePolyhedron compute(){
-        const auto& waypoint = discreteSchedule.waypoint;
-        std::vector<std::vector<std::vector<HyperPlane>>> planes(waypoint.size()); // planes[agent][timestep_k]
-        for(size_t i = 0; i < waypoint.size(); ++i) {
-            planes[i].resize(discreteSchedule.K);
+        const auto& positions = subdividedSchedule.positions;
+        std::vector<std::vector<std::vector<HyperPlane>>> planes(positions.size()); // planes[agent][timestep_k]
+        for(size_t i = 0; i < positions.size(); ++i) {
+            planes[i].resize(subdividedSchedule.K);
         }
 
         // Her `(i, j, k)` üçlüsü için bir `(n, d)` çifti: robot `i` timestep `k`'da `n^T x >= d` tarafında, robot `j` `n^T x <= d` tarafında kalacak.
         // robot - robot
-        for(int k=0; k < discreteSchedule.K; k++){
-            for(int i=0; i < waypoint.size(); i++){ // robot i
-                for(int j=i+1; j< waypoint.size(); j++){ // robot j                    
+        for(int k=0; k < subdividedSchedule.K; k++){
+            for(int i=0; i < positions.size(); i++){ // robot i
+                for(int j=i+1; j< positions.size(); j++){ // robot j                    
                     Eigen::MatrixXd segment_i(3, 2);
-                    segment_i << graph.getVertex(getWaypoint(i, k)).pos, graph.getVertex(getWaypoint(i, k+1)).pos;
-                    
+                    segment_i << subdividedSchedule.positions[i][k], subdividedSchedule.positions[i][k+1];
                     Eigen::MatrixXd segment_j(3, 2);
-                    segment_j << graph.getVertex(getWaypoint(j, k)).pos, graph.getVertex(getWaypoint(j, k+1)).pos;
+                    segment_j << subdividedSchedule.positions[j][k], subdividedSchedule.positions[j][k+1];
 
                     HyperPlane plane = computeSVM(segment_i, segment_j, false);
                     plane.separated_from_type = 0; // Robot
@@ -45,10 +45,10 @@ public:
             }
         }
         // robot - obstacle
-        for(int k = 0; k < discreteSchedule.K; k++){
-            for(int i = 0; i < waypoint.size(); i++){
-                Eigen::Vector3d p_start = graph.getVertex(getWaypoint(i, k)).pos;
-                Eigen::Vector3d p_end   = graph.getVertex(getWaypoint(i, k+1)).pos;
+        for(int k = 0; k < subdividedSchedule.K; k++){
+            for(int i = 0; i < positions.size(); i++){
+                Eigen::Vector3d p_start = subdividedSchedule.positions[i][k];
+                Eigen::Vector3d p_end   = subdividedSchedule.positions[i][k+1];
                 
                 // Segment'e yakın obstacle'ları octree'den bul
                 auto nearby_obs = findNearbyObstacles(p_start, p_end, 1.0); // 1.0m margin
@@ -57,7 +57,7 @@ public:
                     const auto& obstacle = environment.obstacles[obs_idx];
 
                     Eigen::MatrixXd segment_i(3, 2);
-                    segment_i << graph.getVertex(getWaypoint(i, k)).pos, graph.getVertex(getWaypoint(i, k+1)).pos;
+                    segment_i << subdividedSchedule.positions[i][k], subdividedSchedule.positions[i][k+1];
                     
                     Eigen::MatrixXd obstacle_matrix = getObstacleCorners(obstacle.min, obstacle.max);
                     
@@ -69,10 +69,9 @@ public:
             }
         }
         // robot - environment boundaries
-        for(int k=0; k < discreteSchedule.K; k++){
-            for(int i=0; i < waypoint.size(); i++){ // robot i
+        for(int k=0; k < subdividedSchedule.K; k++){
+            for(int i=0; i < positions.size(); i++){ // robot i
                 // The robot must stay INSIDE the world bounds. This is defined by 6 planes.
-                // We don't use SVM here; the planes are fixed.
                 // The offset is based on the robot's radius for obstacle collision.
                 double offset = robotModel.radius;
                 const int obstacle_type = 1;
@@ -270,6 +269,7 @@ public:
         
         double norm_val = normal.norm();
         if (norm_val < 1e-6) { // If SVM failed to find a good normal (e.g., sets are not separable with margin)
+            std::cout << "SVM failed to find a good normal";
             Eigen::Vector3d centroid_diff = points_i.rowwise().mean() - points_j.rowwise().mean();
             if (centroid_diff.norm() < 1e-6) { // Centroids are too close or identical
                 // Fallback to an arbitrary non-zero normal if centroids are also too close
@@ -294,7 +294,7 @@ public:
 
 private:
     const Graph& graph;
-    const DiscreteSchedule& discreteSchedule;
+    const SubdividedSchedule& subdividedSchedule;
     const RobotModel& robotModel;
     const Environment& environment;
 
@@ -332,14 +332,14 @@ private:
     }
 
 
-    int getWaypoint(size_t agent_idx, int time) const {
-        const auto& path = discreteSchedule.waypoint[agent_idx];
-        if (time < path.size()) {
-            return path[time];
-        }
-        // Ajan hedefine ulaştıysa, son konumunda bekler.
-        return path.back();
-    }
+    // int getWaypoint(size_t agent_idx, int time) const {
+    //     const auto& path = subdividedSchedule.positions[agent_idx];
+    //     if (time < path.size()) {
+    //         return path[time];
+    //     }
+    //     // Ajan hedefine ulaştıysa, son konumunda bekler.
+    //     return path.back();
+    // }
 
     std::tuple<Eigen::Vector3d, Eigen::Vector3d> find_closest_points(const Eigen::MatrixXd& s1, const Eigen::MatrixXd& s2) {
         Eigen::Vector3d p1 = s1.col(0);

@@ -1,0 +1,52 @@
+world_bounds:
+    min: [0.0, 0.0, 0.0]
+    max: [10.0, 6.0, 3.5] # Biraz daha geniş bir alan
+
+obstacles:
+  # MERKEZİ AYIRICI DUVAR (X: 4.8 - 5.2 arası, iki adet geçiş boşluğu bırakıyor)
+  - min: [4.8, 0.0, 0.0] # Alt panel
+    max: [5.2, 1.5, 3.5]
+  - min: [4.8, 2.5, 0.0] # Orta panel
+    max: [5.2, 4.0, 3.5]
+  - min: [4.8, 5.0, 0.0] # Üst panel
+    max: [5.2, 6.0, 3.5]
+  # Sonuç: Y=1.5-2.5 ve Y=4.0-5.0 arasında iki "kapı" var.
+
+  # SOL ODA - Sütunlar ve Tezgahlar
+  - min: [2.0, 1.0, 0.0] # İnce kolon
+    max: [2.3, 1.3, 3.5]
+  - min: [1.0, 4.0, 0.0] # Alçak çalışma masası
+    max: [3.0, 5.5, 1.0]
+  
+  # SAĞ ODA - Asılı Ekipmanlar ve Depolama
+  - min: [7.0, 2.0, 2.0] # Tavandan asılı havalandırma
+    max: [9.0, 4.0, 3.5]
+  - min: [7.5, 0.5, 0.0] # Yerdeki büyük sandıklar
+    max: [8.5, 1.5, 1.5]
+  - min: [6.5, 4.5, 0.0] # Küçük kutu yığını
+    max: [7.0, 5.0, 0.8]
+
+agents:
+  - id: 0 # Alt kapıdan geçiş (X ekseni boyunca düz hat)
+    start: [0.5, 2.0, 1.0]
+    goal:  [9.5, 2.0, 1.0]
+
+  - id: 1 # Üst kapıdan geçiş (Ters yön)
+    start: [9.5, 4.5, 1.2]
+    goal:  [0.5, 4.5, 1.2]
+
+  - id: 2 # Çapraz geçiş (Alt kapıyı zorlar, Agent 0 ile çakışabilir)
+    start: [1.0, 0.5, 2.0]
+    goal:  [9.0, 5.5, 2.0]
+
+  - id: 3 # Odalar arası "S" çizmek zorunda (Engellerin etrafından dolanır)
+    start: [0.5, 5.5, 0.5]
+    goal:  [9.5, 0.5, 3.0]
+
+  - id: 4 # Dikey devriye (Sol oda içinde, duvarın dibinde)
+    start: [4.0, 0.5, 1.5]
+    goal:  [4.0, 5.5, 1.5]
+
+  - id: 5 # Dar koridor testi (Sağ oda, asılı engel ile sandık arasından geçer)
+    start: [9.5, 3.0, 1.7]
+    goal:  [6.0, 3.0, 1.7]

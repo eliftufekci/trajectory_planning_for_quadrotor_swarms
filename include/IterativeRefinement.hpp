@@ -1,11 +1,11 @@
 #pragma once
-#include "DiscreteSchedule.hpp"
 #include "Environment.hpp"
 #include "Graph.hpp"
 #include "HyperPlane.hpp"
 #include "BezierCurve.hpp"
 #include "HyperPlaneSeparator.hpp"
 #include "SafePolyhedron.hpp"
+#include "SubdividedSchedule.hpp"
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <fstream>
@@ -17,7 +17,7 @@
 class IterativeRefinement{
 public:
     const Graph& graph;
-    const DiscreteSchedule& discreteSchedule;
+    const SubdividedSchedule& subdividedSchedule;
     const RobotModel& robotModel;
     const Environment& environment;
 
@@ -25,28 +25,35 @@ public:
     int C = 4; // Continuity level
     std::vector<double> user_parameter = {1.0, 1.0, 1.0, 1.0}; // gamma_c weights
 
-    IterativeRefinement(const Graph& graph, const DiscreteSchedule& discreteSchedule, const RobotModel& robotModel, const Environment& environment)
-        : graph(graph), discreteSchedule(discreteSchedule), robotModel(robotModel), environment(environment) {}
+    IterativeRefinement(const Graph& graph, const SubdividedSchedule& subdividedSchedule, const RobotModel& robotModel, const Environment& environment)
+        : graph(graph), subdividedSchedule(subdividedSchedule), robotModel(robotModel), environment(environment) {}
 
     std::vector<std::vector<Eigen::Vector3d>> refine(double T_total, int num_iterations = 6) {
-        int N = discreteSchedule.waypoint.size();
+        int N = subdividedSchedule.positions.size();
         std::vector<int> goal_pieces(N);
         for(int i=0; i < N; i++){
             // path.size()-1 = robotun goal'a ulaştığı timestep
             // O timestep'ten itibaren tüm piece'ler goal'da sabit kalmalı
-            goal_pieces[i] = discreteSchedule.waypoint[i].size() - 1;
+            goal_pieces[i] = subdividedSchedule.K;
+            const auto& pos = subdividedSchedule.positions[i];
+            for(int k=0; k < subdividedSchedule.K; k++){
+                if((pos[k] - environment.agents[i].goal).norm() < 1e-3){
+                    goal_pieces[i] = k;
+                    break;
+                }
+            }
         }
         
         // iterasyon 0: HyperPlane kaynağı = discrete plan segmentleri
-        HyperPlaneSeparator separator(graph, robotModel, discreteSchedule, environment);
-        SafePolyhedron safe_poly = separator.compute();
-
-        // Iterasyon 0 hiperdüzlemlerini kaydet
-        saveSafePolyhedronCSV(safe_poly, "hyperplanes_iter_0.csv");
+        HyperPlaneSeparator separator(graph, robotModel, subdividedSchedule, environment);
+        
+        // Iterasyon 0 hiperdüzlemleri
+        SafePolyhedron current_poly = separator.compute();
+        saveSafePolyhedronCSV(current_poly, "hyperplanes_iter_0.csv");
 
         BezierCurve bezier(D, C, &environment);
-        auto current_trajectories = bezier.compute(safe_poly, user_parameter,
-                                                    discreteSchedule.K, T_total, goal_pieces);
+        auto current_trajectories = bezier.compute(current_poly, user_parameter,
+                                                    subdividedSchedule.K, T_total, goal_pieces);
         
         // Save initial control points (iteration 0)
         saveControlPointsToCSV(current_trajectories, "control_points_iter_0.csv");
@@ -54,17 +61,13 @@ public:
         for (int iter = 1; iter < num_iterations; ++iter) {
             auto sampled_points = sampleTrajectories(current_trajectories);
 
-            SafePolyhedron new_poly = separator.compute(sampled_points);
+            current_poly = separator.compute(sampled_points); 
 
-            SafePolyhedron combined_poly = intersectPolyhedra(new_poly, safe_poly);
+            saveSafePolyhedronCSV(current_poly, "hyperplanes_iter_" + std::to_string(iter) + ".csv");
 
-            saveSafePolyhedronCSV(combined_poly, "hyperplanes_iter_" + std::to_string(iter) + ".csv");
+            current_trajectories = bezier.compute(current_poly, user_parameter,
+                                            subdividedSchedule.K, T_total, goal_pieces);
 
-            auto new_trajectories = bezier.compute(combined_poly, user_parameter,
-                                                discreteSchedule.K, T_total, goal_pieces);
-
-            current_trajectories = new_trajectories;
-            
             // Save control points for current iteration
             saveControlPointsToCSV(current_trajectories, "control_points_iter_" + std::to_string(iter) + ".csv");
         }
@@ -72,25 +75,25 @@ public:
         return current_trajectories;
     }
 
-    SafePolyhedron intersectPolyhedra(const SafePolyhedron& a, const SafePolyhedron& b) {
-        // a ve b'nin planes yapısı: planes[agent][timestep_k] → vector<HyperPlane>
-        size_t num_agents = a.planes.size();
-        size_t K = a.planes[0].size();
+    // SafePolyhedron intersectPolyhedra(const SafePolyhedron& a, const SafePolyhedron& b) {
+    //     // a ve b'nin planes yapısı: planes[agent][timestep_k] → vector<HyperPlane>
+    //     size_t num_agents = a.planes.size();
+    //     size_t K = a.planes[0].size();
 
-        std::vector<std::vector<std::vector<HyperPlane>>> combined(num_agents);
-        for (size_t i = 0; i < num_agents; ++i) {
-            combined[i].resize(K);
-            for (size_t k = 0; k < K; ++k) {
-                // a'nın tüm plane'leri
-                combined[i][k] = a.planes[i][k];
-                // b'nin plane'lerini ekle
-                combined[i][k].insert(combined[i][k].end(),
-                                      b.planes[i][k].begin(),
-                                      b.planes[i][k].end());
-            }
-        }
-        return SafePolyhedron(combined);
-    }
+    //     std::vector<std::vector<std::vector<HyperPlane>>> combined(num_agents);
+    //     for (size_t i = 0; i < num_agents; ++i) {
+    //         combined[i].resize(K);
+    //         for (size_t k = 0; k < K; ++k) {
+    //             // a'nın tüm plane'leri
+    //             combined[i][k] = a.planes[i][k];
+    //             // b'nin plane'lerini ekle
+    //             combined[i][k].insert(combined[i][k].end(),
+    //                                   b.planes[i][k].begin(),
+    //                                   b.planes[i][k].end());
+    //         }
+    //     }
+    //     return SafePolyhedron(combined);
+    // }
 
     void saveSafePolyhedronCSV(const SafePolyhedron& poly, const std::string& path) const {
         std::ofstream f(path);
@@ -151,8 +154,8 @@ private:
         std::vector<std::vector<std::vector<Eigen::Vector3d>>> result(N); // result[agent][timestep_k][sample_point]
         
         for (int agent = 0; agent < N; ++agent) {
-            result[agent].resize(discreteSchedule.K);
-            for (int k = 0; k < discreteSchedule.K; ++k) {
+            result[agent].resize(subdividedSchedule.K);
+            for (int k = 0; k < subdividedSchedule.K; ++k) {
                 std::vector<Eigen::Vector3d> control_points(trajectories[agent].begin() + k*(D+1),
                                                 trajectories[agent].begin() + k*(D+1) + D+1);
                 for (int s = 0; s < S; ++s) {
