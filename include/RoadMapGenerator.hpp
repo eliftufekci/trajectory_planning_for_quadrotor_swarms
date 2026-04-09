@@ -11,10 +11,13 @@ public:
 
 protected:
     RoadMapGenerator(const Environment& env,
-                     const FCLCollisionChecker& collisionChecker)
+                     const FCLCollisionChecker& collisionChecker,
+                     const RobotModel& robotModel)
         : env(env)
-        , collisionChecker(collisionChecker){}
-
+        , collisionChecker(collisionChecker)
+        , robotModel(robotModel) {}
+    
+    const RobotModel& robotModel;
     const Environment& env;
     const FCLCollisionChecker& collisionChecker;
 };

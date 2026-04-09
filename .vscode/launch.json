@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(gdb) Launch env_test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/env_test", // Derlenen çalıştırılabilir dosyanızın yolu
+            "args": ["${workspaceFolder}/config/environment8.yaml"], // C++ programınıza iletilen argümanlar
+            "stopAtEntry": false, // Programın başlangıcında durup durmayacağı
+            "cwd": "${workspaceFolder}/build", // Çalışma dizini
+            "environment": [],
+            "externalConsole": false, // Hata ayıklama çıktısını harici bir konsolda göster
+            "MIMode": "gdb", // Kullanılacak hata ayıklayıcı (Linux için gdb)
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            // Hata ayıklamadan önce CMake ile derleme görevini çalıştır
+            "preLaunchTask": "CMake Build" 
+        }
+    ]
+}

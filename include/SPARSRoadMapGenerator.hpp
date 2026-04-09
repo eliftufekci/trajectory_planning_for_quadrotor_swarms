@@ -6,6 +6,7 @@
 #include "Environment.hpp"
 #include "FCLCollisionChecker.hpp"
 #include "Graph.hpp"
+#include "RobotModel.hpp"
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 #include <ompl/geometric/planners/prm/SPARS.h>
@@ -25,11 +26,11 @@ public:
     //                       OMPL bunu sparseDelta = fraction * space_diagonal olarak kullanır.
     //                       connectRadius: start/goal bağlama için kullanılan yarıçap.
     //                       Negatif bırakılırsa → sparseDelta değerine otomatik eşitlenir.
-    SPARSRoadMapGenerator(const Environment& env,
+    SPARSRoadMapGenerator(const Environment& env, const RobotModel& robot,
                           const FCLCollisionChecker& collisionChecker,
                           double sparseDeltaFraction = 0.05,
                           double connectRadius = -1.0)
-        : RoadMapGenerator(env, collisionChecker)
+        : RoadMapGenerator(env, collisionChecker, robot)
         , sparseDeltaFraction(sparseDeltaFraction)
         , connectRadius_(connectRadius) {}
 
@@ -37,11 +38,14 @@ public:
         Graph roadMap;
         std::map<unsigned int, int> vertexMap;
 
+        // Robotun boyutlarına göre güvenlik payı (inflation)
+        double inflation = robotModel.radius;
+
         auto space = std::make_shared<ob::RealVectorStateSpace>(3);
         ob::RealVectorBounds bounds(3);
-        bounds.setLow(0,  env.world_min.x()); bounds.setHigh(0, env.world_max.x());
-        bounds.setLow(1,  env.world_min.y()); bounds.setHigh(1, env.world_max.y());
-        bounds.setLow(2,  env.world_min.z()); bounds.setHigh(2, env.world_max.z());
+        bounds.setLow(0,  env.world_min.x() + inflation); bounds.setHigh(0, env.world_max.x() - inflation);
+        bounds.setLow(1,  env.world_min.y() + inflation); bounds.setHigh(1, env.world_max.y() - inflation);
+        bounds.setLow(2,  env.world_min.z() + inflation); bounds.setHigh(2, env.world_max.z() - inflation);
         space->setBounds(bounds);
 
         auto si = std::make_shared<ob::SpaceInformation>(space);

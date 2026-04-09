@@ -95,15 +95,18 @@ public:
 
                         // P5: classic edge swap
                         // i: u->v, j:v->u
-                        if(e1 == graph.getEdgeId(state1.vertex_id, state2.vertex_id) &&
-                           e2 == graph.getEdgeId(state2.vertex_id, state1.vertex_id)){
-                            result.time = t;
-                            result.agent1 = i;
-                            result.agent2 = j;
-                            result.type = Conflict::edge;
-                            result.edge_id1 = e1;
-                            result.edge_id2 = e2;
-                            return true;
+                        // Wait actions (edge_id == -1) cannot be part of a swap conflict.
+                        // The robust way is to check the next states.
+                        State state1_next = getState(i, solution, t + 1);
+                        State state2_next = getState(j, solution, t + 1);
+                        if (state1_next.vertex_id == state2.vertex_id && state2_next.vertex_id == state1.vertex_id) {
+                                result.time = t;
+                                result.agent1 = i;
+                                result.agent2 = j;
+                                result.type = Conflict::edge;
+                                result.edge_id1 = e1;
+                                result.edge_id2 = e2;
+                                return true;
                         }
 
                         // P7: conEE
@@ -285,9 +288,10 @@ public:
 
                         // P5: classic edge swap
                         // i: u->v, j:v->u
-                        if(e1 == graph.getEdgeId(state1.vertex_id, state2.vertex_id) &&
-                           e2 == graph.getEdgeId(state2.vertex_id, state1.vertex_id)){
-                            ++numConflicts;
+                        State state1_next = getState(i, solution, t + 1);
+                        State state2_next = getState(j, solution, t + 1);
+                        if (state1_next.vertex_id == state2.vertex_id && state2_next.vertex_id == state1.vertex_id) {
+                                ++numConflicts;
                         }
 
                         // P7: conEE

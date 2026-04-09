@@ -1,12 +1,17 @@
 #include <iostream>
 #include <fstream>
+#include "BezierCurve.hpp"
 #include "Environment.hpp"
 #include "FCLCollisionChecker.hpp"
 #include "Graph.hpp"
+#include "HyperPlaneSeparator.hpp"
+#include "IterativeRefinement.hpp"
 #include "RobotModel.hpp"
 #include "GridRoadMapGenerator.hpp"
 #include "SPARSRoadMapGenerator.hpp"
 #include "FCLConflictAnnotation.hpp"
+#include "SafePolyhedron.hpp"
+#include "SubdividedSchedule.hpp"
 #include "SweptConflictAnnotation.hpp"
 #include "MAPFCSolver.hpp"
 
@@ -52,8 +57,8 @@ int main(int argc, char* argv[]) {
     double step_size = 0.5;
     FCLCollisionChecker fclCollisionChecker(env, robot);
 
-    // GridRoadMapGenerator roadMapGenerator(env, fclCollisionChecker, step_size);
-    SPARSRoadMapGenerator roadMapGenerator(env, fclCollisionChecker);
+    // GridRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker, step_size);
+    SPARSRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker);
 
     Graph environment_graph;
     try {
@@ -92,12 +97,33 @@ int main(int argc, char* argv[]) {
     std::cout << "\n=== Multi-Agent Path Finding (ECBS) ===\n";
     // Çözücüyü swept_conflict_annotation ile başlatıyoruz (fcl de kullanabilirsiniz)
     MPAFCSolver solver(environment_graph, swept_conflict_annotation);
+    std::cout << "mapfc solver worked succesfully\n";
     DiscreteSchedule schedule = solver.solve();
+    SubdividedSchedule subdividedSchedule = schedule.subdivide(environment_graph);
 
     std::cout << "Makespan (K): " << schedule.K << "\n";
     for (size_t i = 0; i < schedule.waypoint.size(); ++i) {
         std::cout << "Robot " << i << " path length: " << schedule.waypoint[i].size() << "\n";
     }
+
+    IterativeRefinement iterativeRefinement(environment_graph, subdividedSchedule, robot, env);
+    int num_iterations = 6;
+    
+    double T_initial = static_cast<double>(subdividedSchedule.K);
+    int K = subdividedSchedule.K;
+    
+    std::vector<std::vector<Eigen::Vector3d>> control_points = iterativeRefinement.refine(T_initial, num_iterations);
+
+    // Save the continuous trajectories for visualization
+    iterativeRefinement.saveControlPointsToCSV(control_points, "control_points.csv");
+    // The iterativeRefinement.refine method now handles saving control points to CSV for each iteration.
+    // The final control points are returned, but not explicitly saved here again.
+
+    double max_velocity = 2.0;   
+    double max_acceleration = 2.0;    
+
+    double T_scaled = iterativeRefinement.computeScaledTime(control_points, T_initial, K, max_acceleration, max_velocity);
+    std::cout << "Gerekli minimum uçuş süresi (T_scaled): " << T_scaled << " saniye\n";
 
     return 0;
 }

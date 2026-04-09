@@ -85,6 +85,10 @@ public:
         return edges.at(edge_id);
     }
 
+    const Vertex& getVertex(int vertex_id) const{
+        return vertices.at(vertex_id);
+    }
+
     // ── (from, to) çiftinden edge id'ye eriş (-1: yok) ───────────────
     int getEdgeId(int from, int to) const {
         auto it = edge_index.find(from);
