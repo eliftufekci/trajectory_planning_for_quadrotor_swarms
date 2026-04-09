@@ -108,12 +108,22 @@ int main(int argc, char* argv[]) {
 
     IterativeRefinement iterativeRefinement(environment_graph, subdividedSchedule, robot, env);
     int num_iterations = 6;
-    std::vector<std::vector<Eigen::Vector3d>> control_points = iterativeRefinement.refine(static_cast<double>(subdividedSchedule.K), num_iterations);
+    
+    double T_initial = static_cast<double>(subdividedSchedule.K);
+    int K = subdividedSchedule.K;
+    
+    std::vector<std::vector<Eigen::Vector3d>> control_points = iterativeRefinement.refine(T_initial, num_iterations);
 
     // Save the continuous trajectories for visualization
     iterativeRefinement.saveControlPointsToCSV(control_points, "control_points.csv");
     // The iterativeRefinement.refine method now handles saving control points to CSV for each iteration.
     // The final control points are returned, but not explicitly saved here again.
+
+    double max_velocity = 2.0;   
+    double max_acceleration = 2.0;    
+
+    double T_scaled = iterativeRefinement.computeScaledTime(control_points, T_initial, K, max_acceleration, max_velocity);
+    std::cout << "Gerekli minimum uçuş süresi (T_scaled): " << T_scaled << " saniye\n";
 
     return 0;
 }

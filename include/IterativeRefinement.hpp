@@ -75,26 +75,6 @@ public:
         return current_trajectories;
     }
 
-    // SafePolyhedron intersectPolyhedra(const SafePolyhedron& a, const SafePolyhedron& b) {
-    //     // a ve b'nin planes yapısı: planes[agent][timestep_k] → vector<HyperPlane>
-    //     size_t num_agents = a.planes.size();
-    //     size_t K = a.planes[0].size();
-
-    //     std::vector<std::vector<std::vector<HyperPlane>>> combined(num_agents);
-    //     for (size_t i = 0; i < num_agents; ++i) {
-    //         combined[i].resize(K);
-    //         for (size_t k = 0; k < K; ++k) {
-    //             // a'nın tüm plane'leri
-    //             combined[i][k] = a.planes[i][k];
-    //             // b'nin plane'lerini ekle
-    //             combined[i][k].insert(combined[i][k].end(),
-    //                                   b.planes[i][k].begin(),
-    //                                   b.planes[i][k].end());
-    //         }
-    //     }
-    //     return SafePolyhedron(combined);
-    // }
-
     void saveSafePolyhedronCSV(const SafePolyhedron& poly, const std::string& path) const {
         std::ofstream f(path);
         if (!f) {
@@ -143,6 +123,38 @@ public:
         std::cout << "Kaydedildi: " << path << "\n";
     }
 
+    double computeScaledTime(
+        const std::vector<std::vector<Eigen::Vector3d>>& control_points,
+        double T_initial,
+        int K,
+        double max_acceleration,   // m/s^2
+        double max_velocity){
+
+        // OPTİMİZASYON: Başlangıç süresi (T_initial) zaten limitleri sağlıyorsa, 
+        // boşuna binary search (ikili arama) yapmadan direkt mevcut süreyi döndür.
+        if(checkLimits(control_points, T_initial, K, max_acceleration, max_velocity)) {
+            return T_initial;
+        }
+
+        double T_low = T_initial;
+        double T_high = T_initial * 20.0; // üst sınır
+
+        while(!checkLimits(control_points, T_high, K, max_acceleration, max_velocity))
+            T_high *= 2.0;
+
+        for(int iter = 0; iter < 30; ++iter){
+            double T_mid = (T_low + T_high) * 0.5;
+
+            if(checkLimits(control_points, T_mid, K, max_acceleration, max_velocity))
+                T_high = T_mid;
+            else
+                T_low = T_mid;
+        }
+
+        return T_high;
+        
+    }
+
 private:
     // agent başına, timestep başına S nokta
     // current_trajectories[agent] → K*(D+1) control point listesi
@@ -180,5 +192,56 @@ private:
             }
         }
         return temp[0]; // Eğri üzerindeki nokta
+    }
+
+    // belirli bir türev derecesi için sadece kontrol noktalarını döndürür
+    std::vector<Eigen::Vector3d> getDerivativeControlPoints(const std::vector<Eigen::Vector3d>& cps, double T_piece, int c) {
+        std::vector<Eigen::Vector3d> derivate_cps = cps;
+        int deg = derivate_cps.size() - 1;
+
+        for (int i = 0; i < c; i++) {
+            std::vector<Eigen::Vector3d> next;
+            for (int j = 0; j < (int)derivate_cps.size() - 1; j++) {
+                next.push_back(deg * (derivate_cps[j+1] - derivate_cps[j]));
+            }
+            derivate_cps = next;
+            deg--;
+        }
+
+        // Zaman ölçeklemesini kontrol noktalarına uygula
+        double scale = std::pow(T_piece, c);
+        for (auto& p : derivate_cps) {
+            p /= scale;
+        }
+        return derivate_cps;
+    }
+
+    bool checkLimits(
+        const std::vector<std::vector<Eigen::Vector3d>>& control_points,
+        double T_total,
+        int K,
+        double max_acc,
+        double max_vel){
+
+        double T_piece = T_total / K;
+
+        for (const auto& agent_cps : control_points) {
+            for (int k = 0; k < K; ++k) {
+                std::vector<Eigen::Vector3d> cps(agent_cps.begin() + k * (D + 1), agent_cps.begin() + k * (D + 1) + D + 1);
+
+                // Hız kontrol noktalarını al ve maksimum sınırı aşıp aşmadığını test et
+                auto vel_cps = getDerivativeControlPoints(cps, T_piece, 1);
+                for (const auto& v : vel_cps) {
+                    if (v.norm() > max_vel) return false;
+                }
+
+                // İvme kontrol noktalarını al ve maksimum sınırı aşıp aşmadığını test et
+                auto acc_cps = getDerivativeControlPoints(cps, T_piece, 2);
+                for (const auto& a : acc_cps) {
+                    if (a.norm() > max_acc) return false;
+                }
+            }
+        }
+        return true;
     }
 };
