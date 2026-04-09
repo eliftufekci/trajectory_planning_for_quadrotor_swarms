@@ -57,8 +57,8 @@ int main(int argc, char* argv[]) {
     double step_size = 0.5;
     FCLCollisionChecker fclCollisionChecker(env, robot);
 
-    GridRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker, step_size);
-    // SPARSRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker);
+    // GridRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker, step_size);
+    SPARSRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker);
 
     Graph environment_graph;
     try {

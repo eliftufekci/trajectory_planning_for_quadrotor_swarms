@@ -51,7 +51,7 @@ public:
         SafePolyhedron current_poly = separator.compute();
         saveSafePolyhedronCSV(current_poly, "hyperplanes_iter_0.csv");
 
-        BezierCurve bezier(D, C, &environment);
+        BezierCurve bezier(D, C, &environment, subdividedSchedule);
         auto current_trajectories = bezier.compute(current_poly, user_parameter,
                                                     subdividedSchedule.K, T_total, goal_pieces);
         
@@ -159,7 +159,7 @@ private:
                 std::vector<Eigen::Vector3d> control_points(trajectories[agent].begin() + k*(D+1),
                                                 trajectories[agent].begin() + k*(D+1) + D+1);
                 for (int s = 0; s < S; ++s) {
-                    double t = (double)s / S;
+                    double t = (double)s / (S - 1);  
                     result[agent][k].push_back(sampleBezier(t, control_points));
                 }
             }

@@ -4,6 +4,7 @@
 #include "HyperPlane.hpp"
 #include "MAPFCTypes.hpp"
 #include "SafePolyhedron.hpp"
+#include "SubdividedSchedule.hpp"
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <unistd.h>
@@ -15,12 +16,13 @@ struct BezierCurve{
     const int D; // Bezier curve degree
     const int C; // Continuity level (e.g., C0, C1, C2)
 
-    const Environment* environment; // Pointer to the environment for agent start/goal
+    const Environment* environment;
+    const SubdividedSchedule& subdividedSchedule;
 
     std::map<int, long long> factorial_lookup; // Changed to long long to prevent overflow
 
-    BezierCurve(int degree, int continuity_level, const Environment* env)
-        : D(degree), C(continuity_level), environment(env) {
+    BezierCurve(int degree, int continuity_level, const Environment* env, const SubdividedSchedule& schedule)
+        : D(degree), C(continuity_level), environment(env), subdividedSchedule(schedule) {
         fill_lookup_table();
     }
 
@@ -157,6 +159,10 @@ struct BezierCurve{
         // a. Corridor Constraints: y_k,d in P_k
         const double inf = std::numeric_limits<double>::infinity();
         for (int k = 0; k < K; ++k) {
+            // goal'a ulaşıldıktan sonra tüm control pointler pinned,
+            // corridor constraint çakışma yaratır — skip
+            if (k >= goal_piece) continue;
+
             for (int d = 0; d <= D; ++d) {
                 int cp_idx = k * (D + 1) + d;
                 for (const auto& hyperplane : safe_polyhedron.planes[agent_id][k]) {
@@ -536,6 +542,7 @@ struct BezierCurve{
         auto solver_status = solver.solveProblem();
 
         std::vector<Eigen::Vector3d> control_points;
+
         if (solver_status == OsqpEigen::ErrorExitFlag::NoError) {
             Eigen::VectorXd solution = solver.getSolution();
             control_points.resize(K * (D + 1));
@@ -547,8 +554,9 @@ struct BezierCurve{
                 );
             }
         } else {
-            // Fallback or error handling
-            throw std::runtime_error("QP could not be solved.");
+            std::cerr << "[BezierCurve] QP infeasible for agent " << agent_id
+                    << " — falling back to piecewise linear plan.\n";
+            control_points = linear_fallback(start_pos, goal_pos, agent_id, K);
         }
 
         return control_points;
@@ -571,5 +579,28 @@ struct BezierCurve{
         }
         return all_control_points;
     }
+
+    std::vector<Eigen::Vector3d> linear_fallback(   const Eigen::Vector3d& start_pos, 
+                                                    const Eigen::Vector3d& goal_pos, 
+                                                    int agent_id,
+                                                    int K) const {
+        
+        std::vector<Eigen::Vector3d> control_points;
+        control_points.reserve(K * (D + 1));
+
+        const auto& waypoints = subdividedSchedule.positions[agent_id];
+        // waypoints.size() == K+1 olmalı (k=0...k)
+        for (int k = 0; k < K; ++k) {
+            Eigen::Vector3d p_start = (k < (int)waypoints.size()) ? waypoints[k] : start_pos;
+            Eigen::Vector3d p_end = ((k+1) < (int)waypoints.size()) ? waypoints[k+1] : goal_pos;
+
+            for (int d = 0; d <= D; ++d) {
+                double t = (double)d / D;
+                control_points.push_back((1.0 - t) * p_start + t * p_end);
+            }
+        }
+        return control_points;
+    }
+
     
 };

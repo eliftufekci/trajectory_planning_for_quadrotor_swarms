@@ -218,7 +218,7 @@ public:
             P.insert(1, 1) = robotModel.ry * robotModel.ry;
             P.insert(2, 2) = robotModel.rz * robotModel.rz;
         }
-        // P.insert(3, 3) = 0; // d'nin karesi minimize edilmiyor
+        P.insert(3, 3) = 1e-6;
 
         // --- 2. Gradyan Vektörü (q): q'x terimi yok ---
         Eigen::VectorXd q = Eigen::VectorXd::Zero(n_vars);
