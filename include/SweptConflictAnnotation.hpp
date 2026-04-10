@@ -16,7 +16,6 @@ public:
         conEE = findConEE();
     }
 
-
 private:
     Eigen::Vector3d segment_to_point(const Eigen::Vector3d& a, const Eigen::Vector3d& b, const Eigen::Vector3d& p){
         Eigen::Vector3d ab = b - a;
