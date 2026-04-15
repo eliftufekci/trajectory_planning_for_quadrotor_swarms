@@ -42,4 +42,6 @@ sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev libcdd-dev 
     diff_seconds=$((sec2 - sec1))
     echo "Runtime: $diff_seconds seconds"
     /bin/python /home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/visualize_interactive.py
+    cd /home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/simulation
+    /bin/python cp_to_crazyswarm2_format.py --input /home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/build/control_points.csv --duration 42.0 --out_dir ./trajectories
 )

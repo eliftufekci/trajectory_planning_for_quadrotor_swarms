@@ -123,6 +123,7 @@ int main(int argc, char* argv[]) {
     double max_acceleration = 2.0;    
 
     double T_scaled = iterativeRefinement.computeScaledTime(control_points, T_initial, K, max_acceleration, max_velocity);
+    double duration = T_scaled / K;
     std::cout << "Gerekli minimum uçuş süresi (T_scaled): " << T_scaled << " saniye\n";
 
     return 0;
