@@ -1,7 +1,4 @@
-# Environment 6
-# Merkezi alan, 4 robotun hepsi ortadan gecmeye calisiyor
-
-labeled : true
+labeled : false
 
 world_bounds:
     min: [0.0, 0.0, 0.0]
@@ -24,7 +21,7 @@ obstacles:
 agents:
   - id: 0
     start: [1.8, 0.5, 0.5]
-
+    
   - id: 1
     start: [3.2, 4.5, 0.5]
 

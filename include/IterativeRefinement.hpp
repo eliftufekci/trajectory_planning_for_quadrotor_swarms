@@ -36,8 +36,9 @@ public:
             // O timestep'ten itibaren tüm piece'ler goal'da sabit kalmalı
             goal_pieces[i] = subdividedSchedule.K;
             const auto& pos = subdividedSchedule.positions[i];
+            Eigen::Vector3d goal_pos = pos.back();
             for(int k=0; k < subdividedSchedule.K; k++){
-                if((pos[k] - environment.agents[i].goal).norm() < 1e-3){
+                if((pos[k] - goal_pos).norm() < 1e-3){
                     goal_pieces[i] = k;
                     break;
                 }

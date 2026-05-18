@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <fstream>
 #include <stdexcept>
+#include <queue>
+#include <iostream>
 
 
 struct Vertex{
@@ -41,6 +43,51 @@ public:
 
     std::vector<int> start_vertices;
     std::vector<int> goal_vertices;
+
+    // ── En Yakın Vertex'i bul ─────────────────────────────
+    int findNearestVertex(const Eigen::Vector3d& pos) const{
+        int best = -1;
+        double best_dist = 1e9;
+        
+        for (const auto& v : vertices) {
+            double dist = (v.pos - pos).norm();
+            if (dist < best_dist) {
+                best_dist = dist;
+                best = v.id;
+            }
+        }
+        return best;
+    }
+
+    // ── Dijkstra - strat'tan -> tüm vertex'lere mesafe ─────────────────────────────
+    std::vector<double> dijkstra(int start) const {
+        std::vector<double> dist(vertices.size(), 1e9);
+
+        std::priority_queue<std::pair<double,int>,
+                            std::vector<std::pair<double,int>>,
+                            std::greater<>> pq;
+
+        dist[start] = 0.0;
+        pq.push({0.0, start});
+
+        while (!pq.empty()) {
+            auto [d, u] = pq.top();
+            pq.pop();
+
+            if (d > dist[u]) 
+                continue;
+            
+            for (int v : neighbors(u)) {
+                double nd = d + getEdge(getEdgeId(u,v)).cost;
+                if (nd < dist[v]) {
+                    dist[v] = nd;
+                    pq.push({nd, v});
+                }
+            }
+        }
+        return dist;
+    }
+
 
     // ── Vertex ekle, id döndür ────────────────────────────────────────
     int addVertex(const Eigen::Vector3d& pos) {

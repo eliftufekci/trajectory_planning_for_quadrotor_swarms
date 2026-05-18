@@ -46,12 +46,10 @@ struct AABB {
 struct Agent {
     int id;
     Eigen::Vector3d start;
-    Eigen::Vector3d goal;
 
     explicit Agent(const YAML::Node& node)
         : id(node["id"].as<int>())
-        , start(yamlToVec3(node["start"]))
-        , goal(yamlToVec3(node["goal"])) {}
+        , start(yamlToVec3(node["start"])) {}
 };
 
 // ─────────────────────────────────────────────
@@ -67,6 +65,9 @@ public:
 
     std::vector<AABB> obstacles;
     std::vector<Agent> agents;      // starts + goals buradan okunur
+
+    bool labeled;
+    std::vector<Eigen::Vector3d> goal_positions; // Sadece labeled=false ise kullanılır
 
     // ── Varsayılan constructor (loadFromYAML kullanımı için) ─────────────
     Environment() : tree(nullptr) {}
@@ -102,14 +103,18 @@ public:
         }
         env.tree->updateInnerOccupancy();
 
-        // Agent'ları oku
-        if (config["agents"]) {
-            for (const auto& node : config["agents"]) {
-                env.agents.emplace_back(node);
-            }
-        }
+        env.labeled = config["labeled"] ? config["labeled"].as<bool>() : true;
 
-        return env;   // RVO/move semantics — kopyalama yok
+        if (config["goals"])
+            for (const auto& g : config["goals"])
+                env.goal_positions.push_back(yamlToVec3(g));
+
+        // agents okurken goal yok artık
+        if (config["agents"])
+            for (const auto& node : config["agents"])
+                env.agents.emplace_back(node);
+
+        return env;   
     }
 
 

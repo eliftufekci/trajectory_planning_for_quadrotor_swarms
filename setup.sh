@@ -1,8 +1,8 @@
-OSQP_EIGEN_DIR="/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/libs/osqp-eigen"
+OSQP_EIGEN_DIR="/home/elif/Masaüstü/trajectory_planning_for_quadrotor_swarms/trajectory_planning_for_quadrotor_swarms/libs/osqp-eigen"
 echo "Cloning osqp-eigen..."
 git clone --depth 1 https://github.com/robotology/osqp-eigen.git "$OSQP_EIGEN_DIR"
 
-LIB_DIR="/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/libs/libMultiRobotPlanning"
+LIB_DIR="/home/elif/Masaüstü/trajectory_planning_for_quadrotor_swarms/trajectory_planning_for_quadrotor_swarms/libs/libMultiRobotPlanning"
 echo "Cloning libMultiRobotPlanning..."
 git clone --depth 1 https://github.com/whoenig/libMultiRobotPlanning.git "$LIB_DIR"
 
@@ -33,15 +33,13 @@ sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev libcdd-dev 
 
 
 (
-    cd /home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/build
-    START=$(date)
-    ./env_test  "/home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/config/environment9.yaml"
-    END=$(date)
-    sec1=$(date -d "$START" +%s)
-    sec2=$(date -d "$END" +%s)
+    cd /home/elif/Masaüstü/trajectory_planning_for_quadrotor_swarms/trajectory_planning_for_quadrotor_swarms/build
+    sec1=$(date +%s)
+    ./env_test  "/home/elif/Masaüstü/trajectory_planning_for_quadrotor_swarms/trajectory_planning_for_quadrotor_swarms/config/environment9.yaml"
+    sec2=$(date +%s)
     diff_seconds=$((sec2 - sec1))
     echo "Runtime: $diff_seconds seconds"
-    /bin/python /home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/visualize_interactive.py
-    cd /home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/simulation
-    /bin/python cp_to_crazyswarm2_format.py --input /home/wwweliftufekci/trajectory_planning_for_quadrotor_swarms/build/control_points.csv --duration 42.0 --out_dir ./trajectories
+    /bin/python /home/elif/Masaüstü/trajectory_planning_for_quadrotor_swarms/trajectory_planning_for_quadrotor_swarms/visualize_interactive.py
+    cd /home/elif/Masaüstü/trajectory_planning_for_quadrotor_swarms/trajectory_planning_for_quadrotor_swarms/simulation
+    /bin/python cp_to_crazyswarm2_format.py --input /home/elif/Masaüstü/trajectory_planning_for_quadrotor_swarms/trajectory_planning_for_quadrotor_swarms/build/control_points.csv --duration 42.0 --out_dir ./trajectories
 )

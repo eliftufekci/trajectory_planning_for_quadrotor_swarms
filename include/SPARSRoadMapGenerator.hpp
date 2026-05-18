@@ -62,13 +62,13 @@ public:
         ob::ScopedState<ob::RealVectorStateSpace> startState(space);
         ob::ScopedState<ob::RealVectorStateSpace> goalState(space);
 
-        if (!env.agents.empty()) {
+        if (!env.agents.empty() && !env.goal_positions.empty()) {
             startState[0] = env.agents[0].start.x();
             startState[1] = env.agents[0].start.y();
             startState[2] = env.agents[0].start.z();
-            goalState[0]  = env.agents[0].goal.x();
-            goalState[1]  = env.agents[0].goal.y();
-            goalState[2]  = env.agents[0].goal.z();
+            goalState[0]  = env.goal_positions[0].x();
+            goalState[1]  = env.goal_positions[0].y();
+            goalState[2]  = env.goal_positions[0].z();
         } else {
             // Zıt köşeler → SPARS tüm alanı tarama şansı bulur
             startState[0] = env.world_min.x();
@@ -168,12 +168,12 @@ private:
             if (start_id < 0) {
                 throw std::runtime_error("Ajan " + std::to_string(agent.id) + " baslangic noktasi roadmape baglanamadi!");
             }
-            int goal_id = connectPoint(agent.goal, graph);
+        }
+        for (size_t i = 0; i < env.goal_positions.size(); ++i) {
+            int goal_id = connectPoint(env.goal_positions[i], graph);
             if (goal_id < 0) {
-                throw std::runtime_error("Ajan " + std::to_string(agent.id) + " hedef noktasi roadmape baglanamadi!");
+                throw std::runtime_error("Hedef " + std::to_string(i) + " noktasi roadmape baglanamadi!");
             }
-            graph.start_vertices.push_back(start_id);
-            graph.goal_vertices.push_back(goal_id);
         }
     }
 

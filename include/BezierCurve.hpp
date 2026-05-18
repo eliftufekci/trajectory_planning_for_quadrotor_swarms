@@ -126,7 +126,7 @@ struct BezierCurve{
         }
 
         const Eigen::Vector3d& start_pos = environment->agents[agent_id].start;
-        const Eigen::Vector3d& goal_pos = environment->agents[agent_id].goal;
+        const Eigen::Vector3d& goal_pos = subdividedSchedule.positions[agent_id].back();
 
         // --- 1. Hessian Matrisi (P) ---
         // Cost = y^T * P * y
