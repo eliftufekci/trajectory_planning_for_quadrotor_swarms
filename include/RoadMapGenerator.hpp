@@ -2,6 +2,7 @@
 #include "Environment.hpp"
 #include "FCLCollisionChecker.hpp"
 #include "Graph.hpp"
+#include "RobotModel.hpp"
 
 class RoadMapGenerator{
 public:
@@ -12,10 +13,7 @@ public:
 protected:
     RoadMapGenerator(const Environment& env,
                      const FCLCollisionChecker& collisionChecker,
-                     const RobotModel& robotModel)
-        : env(env)
-        , collisionChecker(collisionChecker)
-        , robotModel(robotModel) {}
+                     const RobotModel& robotModel);
     
     const RobotModel& robotModel;
     const Environment& env;

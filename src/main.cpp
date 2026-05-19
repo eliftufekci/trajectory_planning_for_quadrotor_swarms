@@ -138,7 +138,7 @@ int main(int argc, char* argv[]) {
 
     // ── 6. Discrete Planning (ECBS) ───────────────────────────────────
     std::cout << "\n=== Discrete Planning (ECBS) ===\n";
-    MPAFCSolver solver(environment_graph, swept_conflict_annotation);
+    MAPFCSolver solver(environment_graph, swept_conflict_annotation);
     DiscreteSchedule schedule = solver.solve();
 
     std::cout << "Makespan (K): " << schedule.K << "\n";

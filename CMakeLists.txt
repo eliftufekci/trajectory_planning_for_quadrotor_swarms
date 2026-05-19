@@ -25,8 +25,11 @@ add_compile_definitions(OSQP_EIGEN_DEBUG_OUTPUT)
 add_subdirectory(libs/osqp-eigen)
 
 # ── 2. Executable (Çalıştırılabilir Dosya) ───────────────────────────
+# src altındaki tüm .cpp dosyalarını otomatik olarak SOURCE_FILES değişkenine atar
+file(GLOB_RECURSE SOURCE_FILES "src/*.cpp")
+
 add_executable(env_test
-    src/main.cpp
+    ${SOURCE_FILES}
 )
 
 # ── 3. Include Dizinleri ──────────────────────────────────────────────

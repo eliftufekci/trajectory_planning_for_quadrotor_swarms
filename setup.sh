@@ -9,8 +9,8 @@ git clone --depth 1 https://github.com/whoenig/libMultiRobotPlanning.git "$LIB_D
 echo "Cleaning up libMultiRobotPlanning..."
 rm -rf "$LIB_DIR/benchmark"
 rm -rf "$LIB_DIR/doc"
-rm -rf "$LIB_DIR/examples"
-rm -rf "$LIB_DIR/test"s
+rm -rf "$LIB_DIR/example"
+rm -rf "$LIB_DIR/test"
 rm -rf "$LIB_DIR/.github"
 rm -f  "$LIB_DIR/CMakeLists.txt" "$LIB_DIR/.clang-format" "$LIB_DIR/.gitignore"
 
@@ -35,7 +35,7 @@ sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev libcdd-dev 
 (
     cd /home/elif/Masaüstü/trajectory_planning_for_quadrotor_swarms/trajectory_planning_for_quadrotor_swarms/build
     sec1=$(date +%s)
-    ./env_test  "/home/elif/Masaüstü/trajectory_planning_for_quadrotor_swarms/trajectory_planning_for_quadrotor_swarms/config/environment9.yaml"
+    ./env_test  "/home/elif/Masaüstü/trajectory_planning_for_quadrotor_swarms/trajectory_planning_for_quadrotor_swarms/config/environment11.yaml"
     sec2=$(date +%s)
     diff_seconds=$((sec2 - sec1))
     echo "Runtime: $diff_seconds seconds"
