@@ -1,2 +1,5 @@
 build
 .cache
+simulation/trajectories
+solution_with_planes.html
+__pycache__

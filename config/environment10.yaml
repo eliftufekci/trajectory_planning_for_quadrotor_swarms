@@ -1,3 +1,5 @@
+labeled : true
+
 world_bounds:
     min: [0.0, 0.0, 0.0]
     max: [10.0, 6.0, 3.5] # Biraz daha geniş bir alan
@@ -29,24 +31,26 @@ obstacles:
 agents:
   - id: 0 # Alt kapıdan geçiş (X ekseni boyunca düz hat)
     start: [0.5, 2.0, 1.0]
-    goal:  [9.5, 2.0, 1.0]
 
   - id: 1 # Üst kapıdan geçiş (Ters yön)
     start: [9.5, 4.5, 1.2]
-    goal:  [0.5, 4.5, 1.2]
 
   - id: 2 # Çapraz geçiş (Alt kapıyı zorlar, Agent 0 ile çakışabilir)
     start: [1.0, 0.5, 2.0]
-    goal:  [9.0, 5.5, 2.0]
 
   - id: 3 # Odalar arası "S" çizmek zorunda (Engellerin etrafından dolanır)
     start: [0.5, 5.5, 0.5]
-    goal:  [9.5, 0.5, 3.0]
 
   - id: 4 # Dikey devriye (Sol oda içinde, duvarın dibinde)
     start: [4.0, 0.5, 1.5]
-    goal:  [4.0, 5.5, 1.5]
 
   - id: 5 # Dar koridor testi (Sağ oda, asılı engel ile sandık arasından geçer)
     start: [9.5, 3.0, 1.7]
-    goal:  [6.0, 3.0, 1.7]
+
+goals:
+  - [9.5, 2.0, 1.0]
+  - [0.5, 4.5, 1.2]
+  - [9.0, 5.5, 2.0]
+  - [9.5, 0.5, 3.0]
+  - [4.0, 5.5, 1.5]
+  - [6.0, 3.0, 1.7]

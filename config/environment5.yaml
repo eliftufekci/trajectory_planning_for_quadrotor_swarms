@@ -1,3 +1,6 @@
+labeled : true
+
+
 # Environment 5
 # Labirent - iki paralel koridor, robotlar gecis noktasinda karsilasir
 world_bounds:
@@ -14,12 +17,14 @@ obstacles:
 agents:
   - id: 0
     start: [0.5, 2.0, 0.5]
-    goal:  [5.5, 2.0, 0.5]
 
   - id: 1
     start: [5.5, 0.5, 0.5]
-    goal:  [0.5, 0.5, 0.5]
 
   - id: 2
     start: [0.5, 3.5, 0.5]
-    goal:  [5.5, 3.5, 0.5]
+
+goals:
+  - [5.5, 2.0, 0.5]
+  - [0.5, 0.5, 0.5]
+  - [5.5, 3.5, 0.5]

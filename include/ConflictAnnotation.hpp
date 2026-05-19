@@ -1,8 +1,9 @@
 #pragma once
 #include <map>
 #include <set>
-#include "Graph.hpp"
-#include "RobotModel.hpp"
+
+class Graph;
+struct RobotModel;
 
 class ConflictAnnotation {
 public:
@@ -15,9 +16,11 @@ public:
     std::map<int, std::set<int>> conEE;
 
 protected:
-    ConflictAnnotation(const Graph& graph, const RobotModel& robotModel)
-        : graph(graph), robotModel(robotModel) {}
+    ConflictAnnotation(const Graph& graph, const RobotModel& robotModel);
 
     const Graph& graph;
     const RobotModel& robotModel;
+
+    // Shared method for finding vertex-vertex conflicts.
+    std::map<int, std::set<int>> findBaseConVV();
 };

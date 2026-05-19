@@ -7,116 +7,57 @@
 #include <yaml-cpp/yaml.h>
 
 
-// ─────────────────────────────────────────────
-//  Yardımcı: YAML dizisini Vector3d'ye çevir
-// ─────────────────────────────────────────────
-inline Eigen::Vector3d yamlToVec3(const YAML::Node& node) {
-    return Eigen::Vector3d(
-        node[0].as<double>(),
-        node[1].as<double>(),
-        node[2].as<double>()
-    );
-}
+// ------------------------------------------------------------
+//  Helper: convert a YAML sequence to Vector3d.
+// ------------------------------------------------------------
+inline Eigen::Vector3d yamlToVec3(const YAML::Node& node);
 
-// ─────────────────────────────────────────────
-//  AABB — Axis-Aligned Bounding Box
-// ─────────────────────────────────────────────
+// ------------------------------------------------------------
+//  AABB - Axis-Aligned Bounding Box
+// ------------------------------------------------------------
 struct AABB {
     Eigen::Vector3d min;
     Eigen::Vector3d max;
 
-    AABB(const Eigen::Vector3d& min, const Eigen::Vector3d& max)
-        : min(min), max(max) {}
+    AABB(const Eigen::Vector3d& min, const Eigen::Vector3d& max);
 
-    // YAML node'dan doğrudan oluştur
-    explicit AABB(const YAML::Node& node)
-        : min(yamlToVec3(node["min"]))
-        , max(yamlToVec3(node["max"])) {}
+    // Build directly from a YAML node.
+    explicit AABB(const YAML::Node& node);
 
-    bool contains(const Eigen::Vector3d& p) const {
-        return p.x() >= min.x() && p.x() <= max.x() &&
-               p.y() >= min.y() && p.y() <= max.y() &&
-               p.z() >= min.z() && p.z() <= max.z();
-    }
+    bool contains(const Eigen::Vector3d& p) const;
+    
 };
 
-// ─────────────────────────────────────────────
-//  Agent — başlangıç / hedef çifti
-// ─────────────────────────────────────────────
+// ------------------------------------------------------------
+//  Agent - start/goal pair.
+// ------------------------------------------------------------
 struct Agent {
     int id;
     Eigen::Vector3d start;
-    Eigen::Vector3d goal;
 
-    explicit Agent(const YAML::Node& node)
-        : id(node["id"].as<int>())
-        , start(yamlToVec3(node["start"]))
-        , goal(yamlToVec3(node["goal"])) {}
+    explicit Agent(const YAML::Node& node);
 };
 
-// ─────────────────────────────────────────────
+// ------------------------------------------------------------
 //  Environment
-// ─────────────────────────────────────────────
+// ------------------------------------------------------------
 class Environment {
 public:
-    // OcTree'nin sahipliğini Environment üstleniyor (unique_ptr ile sızıntı yok)
+    // Environment owns the OcTree (unique_ptr prevents leaks).
     std::unique_ptr<octomap::OcTree> tree;
 
     Eigen::Vector3d world_min;
     Eigen::Vector3d world_max;
 
     std::vector<AABB> obstacles;
-    std::vector<Agent> agents;      // starts + goals buradan okunur
+    std::vector<Agent> agents;      // starts + goals are read from here
 
-    // ── Varsayılan constructor (loadFromYAML kullanımı için) ─────────────
-    Environment() : tree(nullptr) {}
+    bool labeled;
+    std::vector<Eigen::Vector3d> goal_positions; // Used only when labeled=false.
 
-    // ── YAML'dan yükle — static factory ──────────────────────────────────
-    static Environment loadFromYAML(const std::string& path, double resolution = 0.1) {
-        YAML::Node config = YAML::LoadFile(path);
-        Environment env;
+    Environment();
 
-        // Dünya sınırları
-        env.world_min = yamlToVec3(config["world_bounds"]["min"]);
-        env.world_max = yamlToVec3(config["world_bounds"]["max"]);
+    static Environment loadFromYAML(const std::string& path, double resolution = 0.1);
 
-        // OcTree oluştur
-        env.tree = std::make_unique<octomap::OcTree>(resolution);
-
-        // Engelleri oku ve OcTree'ye voxel olarak ekle
-        for (const auto& node : config["obstacles"]) {
-            AABB aabb(node);
-            env.obstacles.push_back(aabb);
-
-            // AABB içindeki tüm voxel'leri dolu işaretle
-            for (double x = aabb.min.x(); x <= aabb.max.x(); x += resolution) {
-                for (double y = aabb.min.y(); y <= aabb.max.y(); y += resolution) {
-                    for (double z = aabb.min.z(); z <= aabb.max.z(); z += resolution) {
-                        env.tree->updateNode(octomap::point3d(
-                            static_cast<float>(x),
-                            static_cast<float>(y),
-                            static_cast<float>(z)), true);
-                    }
-                }
-            }
-        }
-        env.tree->updateInnerOccupancy();
-
-        // Agent'ları oku
-        if (config["agents"]) {
-            for (const auto& node : config["agents"]) {
-                env.agents.emplace_back(node);
-            }
-        }
-
-        return env;   // RVO/move semantics — kopyalama yok
-    }
-
-
-    // ── Dünya sınırları içinde mi? ─────────────────────────────────────
-    bool inBounds(const Eigen::Vector3d& pos) const {
-        return pos.x() >= world_min.x() && pos.x() <= world_max.x() &&
-               pos.y() >= world_min.y() && pos.y() <= world_max.y() &&
-               pos.z() >= world_min.z() && pos.z() <= world_max.z();
-    }
+    bool inBounds(const Eigen::Vector3d& pos) const;
 };

@@ -14,6 +14,7 @@
 #include "SubdividedSchedule.hpp"
 #include "SweptConflictAnnotation.hpp"
 #include "MAPFCSolver.hpp"
+#include <GoalAssigner.hpp>
 
 void saveEnvironmentCSV(const Environment& env, const std::string& path) {
     std::ofstream f(path);
@@ -27,9 +28,12 @@ void saveEnvironmentCSV(const Environment& env, const std::string& path) {
     }
     for (const auto& ag : env.agents) {
         f << "start," << ag.start.x() << "," << ag.start.y() << "," << ag.start.z() << "," << ag.id << "\n";
-        f << "goal,"  << ag.goal.x()  << "," << ag.goal.y()  << "," << ag.goal.z()  << "," << ag.id << "\n";
     }
-    std::cout << "Kaydedildi: " << path << "\n";
+    for (size_t i = 0; i < env.goal_positions.size(); ++i) {
+        const auto& g = env.goal_positions[i];
+        f << "goal," << g.x() << "," << g.y() << "," << g.z() << "," << i << "\n";
+    }
+    std::cout << "Saved: " << path << "\n";
 }
 
 void saveOctreeCSV(const Environment& env, const std::string& path) {
@@ -42,88 +46,126 @@ void saveOctreeCSV(const Environment& env, const std::string& path) {
             ++count;
         }
     }
-    std::cout << "Kaydedildi: " << path << " (" << count << " voxel)\n";
+    std::cout << "Saved: " << path << " (" << count << " voxels)\n";
 }
 
 int main(int argc, char* argv[]) {
-    // YAML path: argümandan al, yoksa varsayılan
     std::string yaml_path = (argc > 1) ? argv[1] : "../config/environment.yaml";
-
-    std::cout << "=== Environment Test ===\n";
+    std::cout << "=== Multi-Agent Trajectory Planning ===\n";
     std::cout << "YAML: " << yaml_path << "\n\n";
 
+    // 1. Environment
     Environment env = Environment::loadFromYAML(yaml_path);
-    RobotModel robot;
-    double step_size = 0.5;
-    FCLCollisionChecker fclCollisionChecker(env, robot);
 
-    // GridRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker, step_size);
+    std::cout << "World min : " << env.world_min.transpose() << "\n";
+    std::cout << "World max : " << env.world_max.transpose() << "\n";
+    std::cout << "Obstacles : " << env.obstacles.size() << "\n";
+    std::cout << "Agents    : " << env.agents.size() << "\n";
+    std::cout << "Labeled   : " << (env.labeled ? "yes" : "no") << "\n\n";
+
+    if (env.agents.size() != env.goal_positions.size()) {
+        std::cerr << "ERROR: agent count (" << env.agents.size()
+                  << ") does not match goal count (" << env.goal_positions.size()
+                  << ")!\n";
+        return 1;
+    }
+
+    saveEnvironmentCSV(env, "environment_data.csv");
+
+    // 2. Roadmap
+    RobotModel robot;
+    FCLCollisionChecker fclCollisionChecker(env, robot);
     SPARSRoadMapGenerator roadMapGenerator(env, robot, fclCollisionChecker);
 
     Graph environment_graph;
     try {
         environment_graph = roadMapGenerator.createRoadMap();
     } catch (const std::runtime_error& e) {
-        std::cerr << "\n!!! Roadmap olusturma basarisiz !!!\n" << e.what() << std::endl;
+        std::cerr << "Roadmap creation failed: " << e.what() << "\n";
         return 1;
     }
-
     environment_graph.saveToCSV("vertices.csv", "edges.csv");
-
-    std::cout << "Dünya min : " << env.world_min.transpose() << "\n";
-    std::cout << "Dünya max : " << env.world_max.transpose() << "\n";
-    std::cout << "Engel     : " << env.obstacles.size() << "\n";
-    std::cout << "Agent     : " << env.agents.size()    << "\n\n";
-
-
-    // CSV çıktıları
-    saveEnvironmentCSV(env, "environment_data.csv");
     saveOctreeCSV(env, "octree_voxels.csv");
 
+    // 3. Store start vertices in the graph.
+    for (const auto& agent : env.agents)
+        environment_graph.start_vertices.push_back(
+            environment_graph.findNearestVertex(agent.start));
+
+    // 4. Goal assignment
+    std::vector<int> goal_verts;
+    for (const auto& gp : env.goal_positions)
+        goal_verts.push_back(environment_graph.findNearestVertex(gp));
+
+    if (env.labeled) {
+        // Preserve order: goal[i] -> robot[i].
+        std::cout << "=== Labeled: Ordered goal assignment ===\n";
+        environment_graph.goal_vertices = goal_verts;
+    } else {
+        // Assignment with the threshold algorithm.
+        std::cout << "=== Unlabeled: Threshold goal assignment ===\n";
+        GoalAssigner assigner;
+        auto assignment = assigner.assign( environment_graph,
+                                           environment_graph.start_vertices,
+                                           goal_verts);
+
+        if ((int)assignment.size() != (int)env.agents.size()) {
+            std::cerr << "ERROR: Goal assignment failed!\n";
+            return 1;
+        }
+
+        environment_graph.goal_vertices.resize(assignment.size());
+        for (int i = 0; i < (int)assignment.size(); i++) {
+            environment_graph.goal_vertices[i] = goal_verts[assignment[i]];
+            std::cout << "Robot " << i << " -> Goal " << assignment[i] << "\n";
+        }
+    }
+
+    // 5. Conflict annotation
+    std::cout << "\n=== Conflict Annotation ===\n";
     FCLConflictAnnotation fcl_conflict_annotation(environment_graph, robot);
     fcl_conflict_annotation.annotate();
 
     SweptConflictAnnotation swept_conflict_annotation(environment_graph, robot);
     swept_conflict_annotation.annotate();
 
-    std::cout << "fcl conVV boyutu: " << fcl_conflict_annotation.conVV.size() << "\n";
-    std::cout << "fcl conEV boyutu: " << fcl_conflict_annotation.conEV.size() << "\n";
-    std::cout << "fcl conEE boyutu: " << fcl_conflict_annotation.conEE.size() << "\n";
+    std::cout << "FCL   - conVV: " << fcl_conflict_annotation.conVV.size()
+              << "  conEV: " << fcl_conflict_annotation.conEV.size()
+              << "  conEE: " << fcl_conflict_annotation.conEE.size() << "\n";
+    std::cout << "Swept - conVV: " << swept_conflict_annotation.conVV.size()
+              << "  conEV: " << swept_conflict_annotation.conEV.size()
+              << "  conEE: " << swept_conflict_annotation.conEE.size() << "\n";
 
-    std::cout << "swept conVV boyutu: " << swept_conflict_annotation.conVV.size() << "\n";
-    std::cout << "swept conEV boyutu: " << swept_conflict_annotation.conEV.size() << "\n";
-    std::cout << "swept conEE boyutu: " << swept_conflict_annotation.conEE.size() << "\n";
-
-    std::cout << "\n=== Multi-Agent Path Finding (ECBS) ===\n";
-    // Çözücüyü swept_conflict_annotation ile başlatıyoruz (fcl de kullanabilirsiniz)
-    MPAFCSolver solver(environment_graph, swept_conflict_annotation);
-    std::cout << "mapfc solver worked succesfully\n";
+    // 6. Discrete planning (ECBS)
+    std::cout << "\n=== Discrete Planning (ECBS) ===\n";
+    MAPFCSolver solver(environment_graph, swept_conflict_annotation);
     DiscreteSchedule schedule = solver.solve();
-    SubdividedSchedule subdividedSchedule = schedule.subdivide(environment_graph);
 
     std::cout << "Makespan (K): " << schedule.K << "\n";
-    for (size_t i = 0; i < schedule.waypoint.size(); ++i) {
-        std::cout << "Robot " << i << " path length: " << schedule.waypoint[i].size() << "\n";
-    }
+    for (size_t i = 0; i < schedule.waypoint.size(); ++i)
+        std::cout << "  Robot " << i
+                  << " path length: " << schedule.waypoint[i].size() << "\n";
 
-    IterativeRefinement iterativeRefinement(environment_graph, subdividedSchedule, robot, env);
-    int num_iterations = 6;
-    
+    SubdividedSchedule subdividedSchedule = schedule.subdivide(environment_graph);
+
+    // 7. Continuous trajectory optimization
+    std::cout << "\n=== Iterative Refinement ===\n";
+    IterativeRefinement iterativeRefinement(
+        environment_graph, subdividedSchedule, robot, env);
+
     double T_initial = static_cast<double>(subdividedSchedule.K);
     int K = subdividedSchedule.K;
-    
-    std::vector<std::vector<Eigen::Vector3d>> control_points = iterativeRefinement.refine(T_initial, num_iterations);
 
-    // Save the continuous trajectories for visualization
+    auto control_points = iterativeRefinement.refine(T_initial, 6);
     iterativeRefinement.saveControlPointsToCSV(control_points, "control_points.csv");
-    // The iterativeRefinement.refine method now handles saving control points to CSV for each iteration.
-    // The final control points are returned, but not explicitly saved here again.
 
-    double max_velocity = 2.0;   
-    double max_acceleration = 2.0;    
+    // 8. Dynamic scaling
+    double max_velocity     = 2.0;
+    double max_acceleration = 2.0;
+    double T_scaled = iterativeRefinement.computeScaledTime(
+        control_points, T_initial, K, max_acceleration, max_velocity);
 
-    double T_scaled = iterativeRefinement.computeScaledTime(control_points, T_initial, K, max_acceleration, max_velocity);
-    std::cout << "Gerekli minimum uçuş süresi (T_scaled): " << T_scaled << " saniye\n";
+    std::cout << "Flight time (T_scaled): " << T_scaled << " s\n";
 
     return 0;
 }

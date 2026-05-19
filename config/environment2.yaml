@@ -1,3 +1,5 @@
+labeled : true
+
 world_bounds:
     min: [0.0, 0.0, 0.0]
     max: [4.0, 4.0, 1.0]
@@ -12,14 +14,16 @@ agents:
   # Robot 0: sol alttan sag uste - ortadan gecmek istiyor
   - id: 0
     start: [0.5, 0.5, 0.5]
-    goal:  [3.5, 3.5, 0.5]
 
   # Robot 1: sag alttan sol uste - ortadan gecmek istiyor (kesisiyorlar)
   - id: 1
     start: [3.5, 0.5, 0.5]
-    goal:  [0.5, 3.5, 0.5]
 
   # Robot 2: soldan saga duz
   - id: 2
     start: [0.5, 2.0, 0.5]
-    goal:  [3.5, 2.0, 0.5]
+
+goals:
+  - [3.5, 3.5, 0.5]
+  - [0.5, 3.5, 0.5]
+  - [3.5, 2.0, 0.5]

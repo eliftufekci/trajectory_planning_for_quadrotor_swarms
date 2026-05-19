@@ -1,3 +1,5 @@
+labeled : true
+
 world_bounds:
     min: [0.0, 0.0, 0.0]
     max: [8.0, 4.0, 3.0] # Yükseklik 3 metreye çıkarıldı
@@ -32,24 +34,26 @@ obstacles:
 agents:
   - id: 0 # Köşeden köşeye (Alçak seviye uçuş)
     start: [0.4, 0.4, 0.5]
-    goal:  [7.6, 3.6, 0.5]
 
   - id: 1 # Köşeden köşeye (Yüksek seviye uçuş)
     start: [7.6, 0.4, 2.5]
-    goal:  [0.4, 3.6, 2.5]
 
   - id: 2 # Orta hat geçişi (Zikzak yapmak zorunda)
     start: [0.4, 2.0, 1.5]
-    goal:  [7.6, 2.0, 1.5]
 
   - id: 3 # Ters orta hat
     start: [7.6, 2.5, 1.8]
-    goal:  [0.4, 1.5, 1.8]
 
   - id: 4 # Dikey kesen hat (Y ekseni boyunca)
     start: [4.0, 0.4, 2.0]
-    goal:  [4.0, 3.6, 2.0]
 
   - id: 5 # Kısa mesafe çapraz (Engel yoğun bölge)
     start: [2.0, 3.6, 1.0]
-    goal:  [6.0, 0.4, 1.0]
+
+goals:
+  - [7.6, 3.6, 0.5]
+  - [0.4, 3.6, 2.5]
+  - [7.6, 2.0, 1.5]
+  - [0.4, 1.5, 1.8]
+  - [4.0, 3.6, 2.0]
+  - [6.0, 0.4, 1.0]
