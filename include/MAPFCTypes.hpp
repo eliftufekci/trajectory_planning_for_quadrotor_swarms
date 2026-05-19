@@ -44,8 +44,8 @@ struct Conflict {
     int time;
     Type type;
 
-    int vertex_id; // conVV için
-    int edge_id1;  // conEE ve conEV için
+    int vertex_id; // for conVV
+    int edge_id1;  // for conEE and conEV
     int edge_id2;
 
     friend std::ostream& operator<<(std::ostream& os, const Conflict& c);

@@ -36,25 +36,25 @@ void FCLCollisionChecker::createObsObjects(const std::vector<AABB>& obstacles) {
 }
 
 bool FCLCollisionChecker::isEdgeFree(const Eigen::Vector3d& a, const Eigen::Vector3d& b) const {
-    // Robot başlangıç transform'u
+    // Robot start transform.
     fcl::Transform3d tf_start = fcl::Transform3d::Identity();
     tf_start.translation() = a;
 
-    // Robot bitiş transform'u
+    // Robot end transform.
     fcl::Transform3d tf_end = fcl::Transform3d::Identity();
     tf_end.translation() = b;
 
-    // Robot CollisionObject — başlangıç pozisyonunda
+    // Robot CollisionObject at the start position.
     fcl::CollisionObjectd sphere_obj(agent_sphere_, tf_start);
 
-    // Obstacle bitiş transform'u — sabit, kendi tf'i ile aynı
+    // Obstacle end transform is fixed and equal to its own transform.
     for (const auto& obs_obj : obsCollisionObjects) {
         fcl::ContinuousCollisionRequestd request;
         fcl::ContinuousCollisionResultd result;
 
         fcl::continuousCollide(
-            &sphere_obj, tf_end,                    // robot: start→end hareket ediyor
-            obs_obj.get(), obs_obj->getTransform(), // obstacle: sabit, başlangıç = bitiş
+            &sphere_obj, tf_end,                    // robot: moving start->end
+            obs_obj.get(), obs_obj->getTransform(), // obstacle: fixed, start = end
             request, result
         );
 
@@ -67,11 +67,11 @@ bool FCLCollisionChecker::isEdgeFree(const Eigen::Vector3d& a, const Eigen::Vect
 }
 
 bool FCLCollisionChecker::isOccupied(const Eigen::Vector3d& pos) const {
-    // Robot başlangıç transform'u
+    // Robot start transform.
     fcl::Transform3d tf = fcl::Transform3d::Identity();
     tf.translation() = pos;
 
-    // Robot CollisionObject — başlangıç pozisyonunda
+    // Robot CollisionObject at the start position.
     fcl::CollisionObjectd sphere_obj(agent_sphere_, tf);
 
     for (const auto& obs_obj : obsCollisionObjects) {

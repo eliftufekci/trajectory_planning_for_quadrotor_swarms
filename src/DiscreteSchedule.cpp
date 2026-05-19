@@ -13,13 +13,13 @@ SubdividedSchedule DiscreteSchedule::subdivide(const Graph& graph){
     for(size_t i = 0; i < waypoint.size(); ++i){
         const auto& path = waypoint[i];
         if (path.empty()) {
-            continue; // Boş yol varsa atla
+            continue; // Skip empty paths.
         }
         
-        // Orijinal K zaman aralığı boyunca iterasyon yapıyoruz
+        // Iterate over the original K time intervals.
         for (int k = 0; k < this->K; ++k){
-            // k anındaki ve k+1 anındaki vertex'i bul.
-            // Eğer ajan hedefe vardıysa, son konumunda bekler.
+            // Find the vertex at time k and k+1.
+            // If the agent has reached the goal, it waits at the last position.
             int curr_vertex_id = (k < path.size()) ? path[k] : path.back();
             int next_vertex_id = (k + 1 < path.size()) ? path[k + 1] : path.back();
 
@@ -32,7 +32,7 @@ SubdividedSchedule DiscreteSchedule::subdivide(const Graph& graph){
             subdividedSchedule.positions[i].push_back(mid);
         }
 
-        // Son nokta (zaman K'deki pozisyon)
+        // Final point (position at time K).
         int final_vertex_id = (this->K < path.size()) ? path[this->K] : path.back();
         subdividedSchedule.positions[i].push_back(graph.getVertex(final_vertex_id).pos);
     }

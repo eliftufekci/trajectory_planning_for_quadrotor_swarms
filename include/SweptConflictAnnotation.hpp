@@ -20,7 +20,7 @@ private:
                                                                     const Eigen::Vector3d& p2, 
                                                                     const Eigen::Vector3d& p3, 
                                                                     const Eigen::Vector3d& p4);
-    // Elipsoid uzayını birim küre uzayına dönüştürür.
+    // Transforms ellipsoid space into unit sphere space.
     Eigen::Vector3d scale_pos(const Eigen::Vector3d& pos, 
                               const RobotModel& model);
 

@@ -11,7 +11,6 @@
 #include "Environment.hpp"
 
 
-
 class FCLCollisionChecker {
 public:
     const Environment& env;
@@ -20,7 +19,7 @@ public:
     std::vector<std::shared_ptr<fcl::Boxd>> obsBoxObjects;
     std::vector<std::shared_ptr<fcl::CollisionObjectd>> obsCollisionObjects;
 
-    // Sphere geometry bir kez oluşturulur, her isEdgeFree çağrısında paylaşılır
+    // Sphere geometry is created once and shared by each isEdgeFree call.
     std::shared_ptr<fcl::Sphered> agent_sphere_;
 
     FCLCollisionChecker(const Environment& env, const RobotModel& robot);

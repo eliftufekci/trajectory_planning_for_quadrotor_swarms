@@ -23,24 +23,24 @@ public:
     Graph createRoadMap();
 
 private:
-    // ── Koordinatı tuple index'e çevir ───────────────────────────────
+    // Convert a coordinate to a tuple index.
     std::tuple<int,int,int> toKey(double x, double y, double z) const ;
 
     std::tuple<int,int,int> toKey(const Eigen::Vector3d& p) const;
 
-    // Tuple index'i gerçek koordinata çevir
+    // Convert a tuple index to a real coordinate.
     Eigen::Vector3d toPos(const std::tuple<int,int,int>& key) const;
 
-    // ── 1: engel olmayan noktaları vertex olarak ekle ─────────
+    // 1: Add non-obstacle points as vertices.
     void addFreeVertices(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap);
 
-    // ── 2: her vertex için 6 komşuya edge ekle ────────────────
+    // 2: Add edges to 6 neighbors for each vertex.
     void addEdges(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap);
 
-    // ── 3: Agent start/goal'larını en yakın vertex'e bağla ───────────
+    // 3: Connect agent starts/goals to the nearest vertex.
     void connectAgents(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap);
 
-    // Nokta indexMap'te yoksa vertex ekle + en yakın 6 vertex'e bağla
+    // If the point is not in indexMap, add a vertex and connect it to the nearest 6 vertices.
     int connectPoint(const Eigen::Vector3d& point,
                     Graph& graph,
                     std::map<std::tuple<int,int,int>, int>& indexMap);

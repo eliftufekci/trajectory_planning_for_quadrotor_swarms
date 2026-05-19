@@ -24,7 +24,7 @@ Graph GridRoadMapGenerator::createRoadMap() {
     return graph;
 }
 
-// ── Koordinatı tuple index'e çevir ───────────────────────────────
+// ── Convert coordinate to tuple index ───────────────────────────────
 std::tuple<int,int,int> GridRoadMapGenerator::toKey(double x, double y, double z) const {
     return {
         static_cast<int>(round((x - env.world_min.x()) / grid_step)),
@@ -37,7 +37,7 @@ std::tuple<int,int,int> GridRoadMapGenerator::toKey(const Eigen::Vector3d& p) co
     return toKey(p.x(), p.y(), p.z());
 }
 
-// Tuple index'i gerçek koordinata çevir
+// Convert tuple index to real coordinate
 Eigen::Vector3d GridRoadMapGenerator::toPos(const std::tuple<int,int,int>& key) const {
     auto [ix, iy, iz] = key;
     return {
@@ -46,13 +46,11 @@ Eigen::Vector3d GridRoadMapGenerator::toPos(const std::tuple<int,int,int>& key) 
         env.world_min.z() + iz * grid_step
     };
 }
-
-// ── 1: engel olmayan noktaları vertex olarak ekle ─────────
+// ── 1: Add non-obstacle points as vertices ─────────
 void GridRoadMapGenerator::addFreeVertices(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap) {
     const Eigen::Vector3d& wmin = env.world_min;
     const Eigen::Vector3d& wmax = env.world_max;
-
-    // Robotun boyutlarına göre grid index'leri için güvenli aralığı hesapla
+    
     double inflation = robotModel.radius;
 
     int ix_start = static_cast<int>(std::ceil(inflation / grid_step));
@@ -80,9 +78,9 @@ void GridRoadMapGenerator::addFreeVertices(Graph& graph, std::map<std::tuple<int
     }
 }
 
-// ── 2: her vertex için 6 komşuya edge ekle ────────────────
+// ── 2: Add edges to 6 neighbors for each vertex ────────────────
 void GridRoadMapGenerator::addEdges(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap) {
-    // 6 yönlü komşuluk (±x, ±y, ±z)
+    // 6-directional neighborhood (±x, ±y, ±z)
     const std::vector<Eigen::Vector3d> directions = {
         { grid_step, 0, 0}, {-grid_step, 0, 0},
         {0,  grid_step, 0}, {0, -grid_step, 0},
@@ -95,13 +93,13 @@ void GridRoadMapGenerator::addEdges(Graph& graph, std::map<std::tuple<int,int,in
         for (const auto& dir : directions) {
             Eigen::Vector3d neighbor = pos + dir;
             auto neighborKey = toKey(neighbor);
-
-            // Komşu indexMap'te yoksa engelde veya sınır dışında
+            
+            // If neighbor is not in indexMap, it's in an obstacle or out of bounds
             if (!indexMap.count(neighborKey)) continue;
 
             int id2 = indexMap.at(neighborKey);
-
-            // Çifte kenar eklemeyi önle (id1 < id2)
+            
+            // Prevent adding duplicate edges (id1 < id2)
             if (id1 >= id2) continue;
 
             if (collisionChecker.isEdgeFree(pos, neighbor)) {
@@ -110,26 +108,23 @@ void GridRoadMapGenerator::addEdges(Graph& graph, std::map<std::tuple<int,int,in
         }
     }
 }
-
-// ── 3: Agent start/goal'larını en yakın vertex'e bağla ───────────
+// ── 3: Connect Agent start/goal to the nearest vertex ───────────
 void GridRoadMapGenerator::connectAgents(Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap) {
     for (const auto& agent : env.agents) {
         int start_id = connectPoint(agent.start, graph, indexMap);
         if (start_id < 0) {
-            throw std::runtime_error("Ajan " + std::to_string(agent.id) + " baslangic noktasi roadmape baglanamadi!");
+            throw std::runtime_error("Agent " + std::to_string(agent.id) + " start point could not be connected to roadmap!");
         }
     }
     for (size_t i = 0; i < env.goal_positions.size(); ++i) {
         int goal_id = connectPoint(env.goal_positions[i], graph, indexMap);
         if (goal_id < 0) {
-            throw std::runtime_error("Hedef " + std::to_string(i) + " noktasi roadmape baglanamadi!");
+            throw std::runtime_error("Goal " + std::to_string(i) + " point could not be connected to roadmap!");
         }
     }
 }
-
-// Nokta indexMap'te yoksa vertex ekle + en yakın 6 vertex'e bağla
+// If the point is not in indexMap, add a vertex + connect to the nearest 6 vertices
 int GridRoadMapGenerator::connectPoint(const Eigen::Vector3d& point, Graph& graph, std::map<std::tuple<int,int,int>, int>& indexMap) {
-    // Zaten birebir grid noktasıysa ek işlem yok
     auto key = toKey(point);
     if (indexMap.count(key)) {
         if ((toPos(key) - point).norm() < 1e-6) return indexMap[key];
@@ -152,15 +147,14 @@ int GridRoadMapGenerator::connectPoint(const Eigen::Vector3d& point, Graph& grap
 
     int connected = 0;
     for (const auto& [dist, vid] : candidates) {
-        if (connected >= 6) break;  // Makale: "up to six neighbors"
+        if (connected >= 6) break;  // Article: "up to six neighbors"
         graph.addEdge(id, vid);
         connected++;
     }
-
-    if (connected == 0) {
-        // Fallback: Yarıçap içinde düğüm bulunamazsa, en yakın çarpışmasız komşuyu bul ve ona bağlan.
-        std::cerr << "Uyari: [" << point.transpose() << "] noktasi icin search_radius (" << search_radius
-                  << ") icinde komsu bulunamadi. Fallback: en yakin komsu araniyor.\n";
+    
+    if (connected == 0) { // If no node is found within the radius, find the closest collision-free neighbor and connect to it.
+        std::cerr << "Warning: No neighbor found within search_radius (" << search_radius
+                  << ") for point [" << point.transpose() << "]. Fallback: searching for the closest neighbor.\n";
 
         std::pair<double, int> best_candidate = {std::numeric_limits<double>::max(), -1};
         for (const auto& v : graph.getVertices()) {
@@ -177,9 +171,9 @@ int GridRoadMapGenerator::connectPoint(const Eigen::Vector3d& point, Graph& grap
         }
     }
 
-    if (connected == 0) { // Fallback'ten sonra tekrar kontrol et
-        std::cerr << "HATA: [" << point.transpose() << "] noktasi roadmap'e hicbir sekilde baglanamiyor!\n";
+    if (connected == 0) { // Check again after fallback
+        std::cerr << "ERROR: Point [" << point.transpose() << "] cannot be connected to the roadmap in any way!\n";
         return -1;
     }
-    return id; // Başarılı bağlantı
+    return id; // Successful connection
 }

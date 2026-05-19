@@ -22,8 +22,8 @@ std::vector<std::vector<Eigen::Vector3d>> IterativeRefinement::refine(double T_t
     int N = subdividedSchedule.positions.size();
     std::vector<int> goal_pieces(N);
     for(int i=0; i < N; i++){
-        // path.size()-1 = robotun goal'a ulaştığı timestep
-        // O timestep'ten itibaren tüm piece'ler goal'da sabit kalmalı
+        // path.size()-1 = timestep where the robot reaches the goal.
+        // From that timestep onward, all pieces must stay fixed at the goal.
         goal_pieces[i] = subdividedSchedule.K;
         const auto& pos = subdividedSchedule.positions[i];
         Eigen::Vector3d goal_pos = pos.back();
@@ -35,10 +35,10 @@ std::vector<std::vector<Eigen::Vector3d>> IterativeRefinement::refine(double T_t
         }
     }
     
-    // iterasyon 0: HyperPlane kaynağı = discrete plan segmentleri
+    // Iteration 0: HyperPlane source = discrete plan segments.
     HyperPlaneSeparator separator(graph, robotModel, subdividedSchedule, environment);
     
-    // Iterasyon 0 hiperdüzlemleri
+    // Iteration 0 hyperplanes.
     SafePolyhedron current_poly = separator.compute();
     saveSafePolyhedronCSV(current_poly, "hyperplanes_iter_0.csv");
 
@@ -69,7 +69,7 @@ std::vector<std::vector<Eigen::Vector3d>> IterativeRefinement::refine(double T_t
 void IterativeRefinement::saveSafePolyhedronCSV(const SafePolyhedron& poly, const std::string& path) const {
     std::ofstream f(path);
     if (!f) {
-        std::cerr << "HATA: Güvenli Polyhedron dosyası açılamadı: " << path << std::endl;
+        std::cerr << "ERROR: Could not open safe polyhedron file: " << path << std::endl;
         return;
     }
     f << "robot_id,timestep,nx,ny,nz,d,ellipsoid_offset,separated_from_type,separated_from_id\n";
@@ -87,7 +87,7 @@ void IterativeRefinement::saveSafePolyhedronCSV(const SafePolyhedron& poly, cons
             }
         }
     }
-    std::cout << "Kaydedildi: " << path << "\n";
+    std::cout << "Saved: " << path << "\n";
 }
 
 // Moved implementation from main.cpp
@@ -95,7 +95,7 @@ void IterativeRefinement::saveControlPointsToCSV(const std::vector<std::vector<E
                             const std::string& path) const {
     std::ofstream f(path);
     if (!f) {
-        std::cerr << "HATA: Kontrol noktası dosyası açılamadı: " << path << std::endl;
+        std::cerr << "ERROR: Could not open control points file: " << path << std::endl;
         return;
     }
     f << "agent_id,piece_id,point_index_in_piece,x,y,z\n";
@@ -111,7 +111,7 @@ void IterativeRefinement::saveControlPointsToCSV(const std::vector<std::vector<E
                 << p.x() << "," << p.y() << "," << p.z() << "\n";
         }
     }
-    std::cout << "Kaydedildi: " << path << "\n";
+    std::cout << "Saved: " << path << "\n";
 }
 
 double IterativeRefinement::computeScaledTime(
@@ -121,14 +121,14 @@ double IterativeRefinement::computeScaledTime(
     double max_acceleration,   // m/s^2
     double max_velocity){
 
-    // OPTİMİZASYON: Başlangıç süresi (T_initial) zaten limitleri sağlıyorsa, 
-    // boşuna binary search (ikili arama) yapmadan direkt mevcut süreyi döndür.
+    // Optimization: if the initial duration (T_initial) already satisfies the limits,
+    // return the current duration directly without running binary search.
     if(checkLimits(control_points, T_initial, K, max_acceleration, max_velocity)) {
         return T_initial;
     }
 
     double T_low = T_initial;
-    double T_high = T_initial * 20.0; // üst sınır
+    double T_high = T_initial * 20.0; // upper bound
 
     while(!checkLimits(control_points, T_high, K, max_acceleration, max_velocity))
         T_high *= 2.0;
@@ -146,13 +146,13 @@ double IterativeRefinement::computeScaledTime(
     
 }
 
-// agent başına, timestep başına S nokta
-// current_trajectories[agent] → K*(D+1) control point listesi
-// k. piece için control pointler: indeks k*(D+1) ... k*(D+1)+D
+// S points per agent and timestep.
+// current_trajectories[agent] -> K*(D+1) control point list.
+// Control points for the k-th piece: indices k*(D+1) ... k*(D+1)+D.
 std::vector<std::vector<std::vector<Eigen::Vector3d>>> IterativeRefinement::sampleTrajectories(const std::vector<std::vector<Eigen::Vector3d>>& trajectories) {  // control points
     int S = 32;
     int N = trajectories.size();
-    // result[agent][k] → S nokta
+    // result[agent][k] -> S points
     std::vector<std::vector<std::vector<Eigen::Vector3d>>> result(N); // result[agent][timestep_k][sample_point]
     
     for (int agent = 0; agent < N; ++agent) {
@@ -169,22 +169,22 @@ std::vector<std::vector<std::vector<Eigen::Vector3d>>> IterativeRefinement::samp
     return result;
 }
 
-    // t_local: 0.0 ile 1.0 arasında (zaman yüzdesi)
-// control_points: O segmente ait 8 nokta (D=7 için)
+    // t_local: between 0.0 and 1.0 (time percentage).
+// control_points: 8 points belonging to that segment (for D=7).
 Eigen::Vector3d IterativeRefinement::sampleBezier(double t_local, const std::vector<Eigen::Vector3d>& control_points) {
     std::vector<Eigen::Vector3d> temp = control_points;
     int n = temp.size();
 
-    // De Casteljau döngüsü
+    // De Casteljau loop.
     for (int j = 1; j < n; ++j) {
         for (int i = 0; i < n - j; ++i) {
             temp[i] = (1.0 - t_local) * temp[i] + t_local * temp[i + 1];
         }
     }
-    return temp[0]; // Eğri üzerindeki nokta
+    return temp[0]; // Point on the curve.
 }
 
-// belirli bir türev derecesi için sadece kontrol noktalarını döndürür
+// Returns only the control points for a specific derivative order.
 std::vector<Eigen::Vector3d> IterativeRefinement::getDerivativeControlPoints(const std::vector<Eigen::Vector3d>& cps, double T_piece, int c) {
     std::vector<Eigen::Vector3d> derivate_cps = cps;
     int deg = derivate_cps.size() - 1;
@@ -198,7 +198,7 @@ std::vector<Eigen::Vector3d> IterativeRefinement::getDerivativeControlPoints(con
         deg--;
     }
 
-    // Zaman ölçeklemesini kontrol noktalarına uygula
+    // Apply time scaling to the control points.
     double scale = std::pow(T_piece, c);
     for (auto& p : derivate_cps) {
         p /= scale;
@@ -219,13 +219,13 @@ bool IterativeRefinement::checkLimits(
         for (int k = 0; k < K; ++k) {
             std::vector<Eigen::Vector3d> cps(agent_cps.begin() + k * (D + 1), agent_cps.begin() + k * (D + 1) + D + 1);
 
-            // Hız kontrol noktalarını al ve maksimum sınırı aşıp aşmadığını test et
+            // Get velocity control points and test whether they exceed the maximum limit.
             auto vel_cps = getDerivativeControlPoints(cps, T_piece, 1);
             for (const auto& v : vel_cps) {
                 if (v.norm() > max_vel) return false;
             }
 
-            // İvme kontrol noktalarını al ve maksimum sınırı aşıp aşmadığını test et
+            // Get acceleration control points and test whether they exceed the maximum limit.
             auto acc_cps = getDerivativeControlPoints(cps, T_piece, 2);
             for (const auto& a : acc_cps) {
                 if (a.norm() > max_acc) return false;

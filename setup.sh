@@ -15,11 +15,10 @@ rm -rf "$LIB_DIR/.github"
 rm -f  "$LIB_DIR/CMakeLists.txt" "$LIB_DIR/.clang-format" "$LIB_DIR/.gitignore"
 
 sudo apt-get update
-# libosqp-dev paketi eski Ubuntu dağıtımlarında (örn. 18.04) bulunmayabilir.
-# Bu yüzden OSQP'yi kaynaktan derlemek daha güvenilir bir yöntemdir.
+
 sudo apt-get install -y liboctomap-dev libeigen3-dev libyaml-cpp-dev libcdd-dev libfcl-dev libompl-dev libboost-all-dev
 
-# --- OSQP'yi kaynaktan derle ve kur ---
+# --- Build OSQP from source ---
 (
     echo "Building and installing OSQP from source..."
     cd /tmp

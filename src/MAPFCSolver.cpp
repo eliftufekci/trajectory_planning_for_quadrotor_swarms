@@ -21,7 +21,7 @@ DiscreteSchedule MAPFCSolver::solve(){
     auto w = 1.3; // suboptimality factor
     ECBS_t ecbs(env, w);
 
-    // `w` ne kadar küçükse o kadar optimal ama yavaş. 1.0 = optimal CBS, 1.3-1.5 pratikte iyi denge.
+    // Smaller `w` is more optimal but slower. 1.0 = optimal CBS; 1.3-1.5 is a practical balance.
 
     std::vector<libMultiRobotPlanning::PlanResult<State, Action, int>> solution;
     bool success = ecbs.search(startStates, solution);
@@ -47,7 +47,7 @@ DiscreteSchedule MAPFCSolver::solve(){
                             << pos.x() << "," << pos.y() << "," << pos.z() << "\n";
             }
         }
-        std::cout << "Kaydedildi: paths.csv\n";
+        std::cout << "Saved: paths.csv\n";
     }
     return DiscreteSchedule(waypoints, makespan);
 }
@@ -60,4 +60,3 @@ std::vector<State> MAPFCSolver::getStartStates(){
     
     return startStates;
 }
-

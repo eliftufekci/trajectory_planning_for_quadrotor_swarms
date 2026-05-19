@@ -17,7 +17,7 @@ struct Vertex{
 
 
 struct Edge{
-    int id;       // benzersiz kenar indeksi (undirected: her kenar bir kez)
+    int id;       // unique edge index (undirected: each edge appears once)
     int from;
     int to;
     double cost;
@@ -30,45 +30,45 @@ class Graph{
 public:
     std::vector<Vertex> vertices;
 
-    // edges: her undirected kenar SADECE BİR KEZ tutulur (from < to garantili)
+    // edges: each undirected edge is stored ONLY ONCE (from < to is guaranteed).
     std::vector<Edge> edges;
 
-    // adjacency: vertex id → komşu vertex id'leri
+    // adjacency: vertex id -> neighboring vertex ids
     std::unordered_map<int, std::vector<int>> adjacency;
 
-    // edge_index: (from, to) çifti → edges vektöründeki indeks
-    // Her iki yön de aynı edge id'ye işaret eder: (u,v) ve (v,u) → aynı Edge
+    // edge_index: (from, to) pair -> index in the edges vector
+    // Both directions point to the same edge id: (u,v) and (v,u) -> same Edge.
     std::unordered_map<int, std::unordered_map<int, int>> edge_index;
 
     std::vector<int> start_vertices;
     std::vector<int> goal_vertices;
 
-    // ── En Yakın Vertex'i bul ─────────────────────────────
+    // Find the nearest vertex.
     int findNearestVertex(const Eigen::Vector3d& pos) const;
 
-    // ── Dijkstra - strat'tan -> tüm vertex'lere mesafe ─────────────────────────────
+    // Dijkstra - distances from start to all vertices.
     std::vector<double> dijkstra(int start) const;
 
-    // ── Vertex ekle, id döndür ────────────────────────────────────────
+    // Add a vertex and return its id.
     int addVertex(const Eigen::Vector3d& pos);
 
-    // ── Kenar ekle (undirected) — edge id döndürür, zaten varsa mevcut id döner
+    // Add an edge (undirected); returns the edge id, or the existing id if present.
     int addEdge(int from, int to);
 
-    // ── Edge id'den Edge nesnesine eriş ──────────────────────────────
+    // Access an Edge object by edge id.
     const Edge& getEdge(int edge_id) const;
     const Vertex& getVertex(int vertex_id) const;
 
-    // ── (from, to) çiftinden edge id'ye eriş (-1: yok) ───────────────
+    // Access an edge id from a (from, to) pair (-1: not found).
     int getEdgeId(int from, int to) const;
 
-    // ── Komşuları döndür ─────────────────────────────────────────────
+    // Return neighbors.
     const std::vector<int>& neighbors(int id) const;
 
-    // ── İstatistik ───────────────────────────────────────────────────
+    // Statistics.
     void printStats() const;
 
-    // ── CSV'ye kaydet ─────────────────────────────────────────────────
+    // Save to CSV.
     void saveToCSV(const std::string& vertex_file, const std::string& edge_file) const;
 
     const std::vector<Vertex>& getVertices() const;

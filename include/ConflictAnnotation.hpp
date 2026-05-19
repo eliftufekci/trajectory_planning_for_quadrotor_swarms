@@ -21,6 +21,6 @@ protected:
     const Graph& graph;
     const RobotModel& robotModel;
 
-    // Ortak vertex-vertex çakışma bulma metodu
+    // Shared method for finding vertex-vertex conflicts.
     std::map<int, std::set<int>> findBaseConVV();
 };

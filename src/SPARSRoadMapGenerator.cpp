@@ -22,10 +22,10 @@ namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
 
-// sparseDeltaFraction : SPARS δ parametresi (space diagonal'ına oranı).
-//                       OMPL bunu sparseDelta = fraction * space_diagonal olarak kullanır.
-//                       connectRadius: start/goal bağlama için kullanılan yarıçap.
-//                       Negatif bırakılırsa → sparseDelta değerine otomatik eşitlenir.
+// sparseDeltaFraction: SPARS delta parameter (as a ratio of the space diagonal).
+//                      OMPL uses it as sparseDelta = fraction * space_diagonal.
+//                      connectRadius: radius used to connect starts/goals.
+//                      If left negative, it is automatically set to sparseDelta.
 SPARSRoadMapGenerator::SPARSRoadMapGenerator(const Environment& env, const RobotModel& robot,
                         const FCLCollisionChecker& collisionChecker,
                         double sparseDeltaFraction,
@@ -38,7 +38,8 @@ Graph SPARSRoadMapGenerator::createRoadMap() {
     Graph roadMap;
     std::map<unsigned int, int> vertexMap;
 
-    // Robotun boyutlarına göre güvenlik payı (inflation)
+    // Safety margin (inflation) based on robot dimensions.
+    
     double inflation = robotModel.radius;
 
     auto space = std::make_shared<ob::RealVectorStateSpace>(3);
@@ -54,11 +55,11 @@ Graph SPARSRoadMapGenerator::createRoadMap() {
     });
     si->setup();
 
-    // SPARS'a start/goal vermek sadece arama yolunu etkiler;
-    // roadmap oluşumu bundan bağımsızdır. Ancak birden fazla start/goal
-    // verilmesi, coverage'ı artırır.
-    // Agent yoksa ortamın zıt iki köşesini kullan — tek nokta verilmesi
-    // SPARS'ın çok seyrek roadmap üretmesine yol açabilir.
+    // Giving SPARS a start/goal only affects the search path;
+    // roadmap construction is independent of it. However, multiple start/goal
+    // states can improve coverage.
+    // If there are no agents, use opposite corners of the environment; a single
+    // point can cause SPARS to produce a very sparse roadmap.
     ob::ScopedState<ob::RealVectorStateSpace> startState(space);
     ob::ScopedState<ob::RealVectorStateSpace> goalState(space);
 
@@ -70,7 +71,7 @@ Graph SPARSRoadMapGenerator::createRoadMap() {
         goalState[1]  = env.goal_positions[0].y();
         goalState[2]  = env.goal_positions[0].z();
     } else {
-        // Zıt köşeler → SPARS tüm alanı tarama şansı bulur
+        // Opposite corners give SPARS a chance to explore the whole space.
         startState[0] = env.world_min.x();
         startState[1] = env.world_min.y();
         startState[2] = env.world_min.z();
@@ -88,8 +89,8 @@ Graph SPARSRoadMapGenerator::createRoadMap() {
     planner->setProblemDefinition(pdef);
     planner->setup();
 
-    // solve() hem roadmap oluşturur hem yol arar.
-    // Başarısız olsa bile roadmap oluşmuş olabilir — getPlannerData() yeterli.
+    // solve() both builds the roadmap and searches for a path.
+    // Even if it fails, a roadmap may have been built; getPlannerData() is enough.
     ob::PlannerTerminationCondition ptc = ob::timedPlannerTerminationCondition(10.0);
     planner->solve(ptc);
 
@@ -97,12 +98,12 @@ Graph SPARSRoadMapGenerator::createRoadMap() {
     planner->getPlannerData(data);
 
     if (data.numVertices() == 0) {
-        std::cerr << "SPARS: Roadmap bos olustu!\n";
+        std::cerr << "SPARS: Roadmap is empty!\n";
         return roadMap;
     }
 
     std::cout << "SPARS: " << data.numVertices() << " vertex, "
-                << data.numEdges() << " edge olusturuldu.\n";
+                << data.numEdges() << " edges created.\n";
 
     addVertices(roadMap, vertexMap, data);
     addEdges(roadMap, vertexMap, data);
@@ -119,9 +120,9 @@ bool SPARSRoadMapGenerator::isStateValid(const ob::State* state) {
 }
 
 
-// SPARS'ın kendi δ'sıyla tutarlı bir search radius hesapla.
-// OMPL içinde: sparseDelta = sparseDeltaFraction * space_diagonal
-// connectRadius negatifse aynı formülü kullan → tutarlılık sağlanır.
+// Compute a search radius consistent with SPARS's own delta.
+// In OMPL: sparseDelta = sparseDeltaFraction * space_diagonal.
+// If connectRadius is negative, use the same formula to keep it consistent.
 double SPARSRoadMapGenerator::computeSearchRadius() const {
     double dx = env.world_max.x() - env.world_min.x();
     double dy = env.world_max.y() - env.world_min.y();
@@ -129,8 +130,8 @@ double SPARSRoadMapGenerator::computeSearchRadius() const {
     double sparseDelta = std::sqrt(dx*dx + dy*dy + dz*dz) * sparseDeltaFraction;
 
     if (connectRadius_ > 0.0)
-        return connectRadius_;   // kullanıcı tanımlı
-    return sparseDelta;          // SPARS δ ile aynı → dispersion'a uyumlu
+        return connectRadius_;   // user-defined
+    return sparseDelta;          // same as SPARS delta, consistent with dispersion
 }
 
 void SPARSRoadMapGenerator::addVertices(Graph& graph,
@@ -164,20 +165,19 @@ void SPARSRoadMapGenerator::connectAgents(Graph& graph) {
     for (const auto& agent : env.agents) {
         int start_id = connectPoint(agent.start, graph);
         if (start_id < 0) {
-            throw std::runtime_error("Ajan " + std::to_string(agent.id) + " baslangic noktasi roadmape baglanamadi!");
+            throw std::runtime_error("Agent " + std::to_string(agent.id) + " start point could not be connected to the roadmap!");
         }
     }
     for (size_t i = 0; i < env.goal_positions.size(); ++i) {
         int goal_id = connectPoint(env.goal_positions[i], graph);
         if (goal_id < 0) {
-            throw std::runtime_error("Hedef " + std::to_string(i) + " noktasi roadmape baglanamadi!");
+            throw std::runtime_error("Goal " + std::to_string(i) + " point could not be connected to the roadmap!");
         }
     }
 }
 
-// Makale Section IV: "connect to up to six neighbors within a search radius
-//                     if the edge could be traversed without collision"
-// Başarı durumunda vertex ID'si, başarısızlıkta -1 döndürür.
+// Paper Section IV: "connect to up to six neighbors within a search radius
+// Returns the vertex ID on success, or -1 on failure.
 int SPARSRoadMapGenerator::connectPoint(const Eigen::Vector3d& point, Graph& graph) {
     int id = graph.addVertex(point);
     double search_radius = computeSearchRadius();
@@ -200,12 +200,12 @@ int SPARSRoadMapGenerator::connectPoint(const Eigen::Vector3d& point, Graph& gra
     }
 
     if (connected == 0) {
-        // Fallback: Yarıçap içinde düğüm bulunamazsa, en yakın çarpışmasız
-        // komşuyu bul ve ona bağlan. Bu, SPARS grafiğinin yerel olarak çok
-        // seyrek olduğu durumlarda bağlantı kopmasını önleyen pragmatik bir çözümdür.
-        std::cerr << "Uyari: [" << point.transpose()
-                    << "] noktasi icin search_radius (" << search_radius
-                    << ") icinde komsu bulunamadi. Fallback: en yakin komsu araniyor.\n";
+        // Fallback: If no node is found within the radius, find the closest collision-free
+        // neighbor and connect to it. This is a pragmatic solution to prevent
+        // disconnection in cases where the SPARS graph is locally very sparse.
+        std::cerr << "Warning: No neighbor found within search_radius (" << search_radius
+                    << ") for point [" << point.transpose()
+                    << "]. Fallback: searching for the nearest neighbor.\n";
 
         std::pair<double, int> best_candidate = {std::numeric_limits<double>::max(), -1};
         for (const auto& v : graph.getVertices()) {
@@ -222,12 +222,12 @@ int SPARSRoadMapGenerator::connectPoint(const Eigen::Vector3d& point, Graph& gra
         }
     }
 
-    if (connected == 0) { // Fallback'ten sonra tekrar kontrol et
-        std::cerr << "HATA: [" << point.transpose()
-                    << "] noktasi roadmap'e hicbir sekilde baglanamiyor!\n";
-        // Bu noktayı izole bırakmak yerine, başarısızlığı bildir.
+    if (connected == 0) { // Check again after fallback
+        std::cerr << "ERROR: Point [" << point.transpose()
+                    << "] cannot be connected to the roadmap in any way!\n";
+        // Report failure instead of leaving this point isolated.
         return -1;
     }
-    return id; // Başarılı bağlantı
+    return id; // Successful connection.
 
 }

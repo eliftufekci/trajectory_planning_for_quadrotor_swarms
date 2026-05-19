@@ -19,14 +19,14 @@ public:
                         const SubdividedSchedule& subdividedSchedule, 
                         const Environment& environment);
 
-    // Tüm schedule için tüm (i,j,k) hyperplane'lerini hesapla
+    // Compute all (i,j,k) hyperplanes for the entire schedule.
     SafePolyhedron compute();
 
-    // iterative refinement için
+    // For iterative refinement.
     SafePolyhedron compute(const std::vector<std::vector<std::vector<Eigen::Vector3d>>>& samples);
 
-    // İki nokta kümesini (burada iki segmentin uç noktaları) ayıran
-    // maksimum marjlı hiperdüzlemi bulan SVM (QP) çözücü.    
+    // SVM (QP) solver that finds the maximum-margin hyperplane separating
+    // two point sets (here, the endpoints of two segments).
     HyperPlane computeSVM( const Eigen::MatrixXd& points_i, const Eigen::MatrixXd& points_j, bool is_obstacle = false);
 
 

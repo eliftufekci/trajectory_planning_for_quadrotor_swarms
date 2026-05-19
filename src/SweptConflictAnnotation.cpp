@@ -12,7 +12,7 @@ SweptConflictAnnotation::SweptConflictAnnotation(const Graph& graph, const Robot
         : ConflictAnnotation(graph, robotModel) {}
 
 void SweptConflictAnnotation::annotate() {
-    conVV = findBaseConVV(); // Ortak metodu çağır
+    conVV = findBaseConVV(); // Call the shared method.
     conEV = findConEV();
     conEE = findConEE();
 }
@@ -45,7 +45,7 @@ std::tuple<Eigen::Vector3d, Eigen::Vector3d> SweptConflictAnnotation::segment_to
     double d = u.dot(w);
     double e = v.dot(w);
 
-    double denom = a*c - b*b; // paralel mi
+    double denom = a*c - b*b; // Are they parallel?
     double s = 0.0, t = 0.0;
 
     if (a < 1e-8 && c < 1e-8) {
@@ -61,7 +61,7 @@ std::tuple<Eigen::Vector3d, Eigen::Vector3d> SweptConflictAnnotation::segment_to
         if (denom > 1e-8) {
             s = std::clamp((b*e - c*d) / denom, 0.0, 1.0);
         } else {
-            s = 0.0; // Paralellerse s'i sabitleyip t'yi buluyoruz
+            s = 0.0; // If they are parallel, fix s and solve for t.
         }
 
         t = (b*s + e) / c;
@@ -81,7 +81,7 @@ std::tuple<Eigen::Vector3d, Eigen::Vector3d> SweptConflictAnnotation::segment_to
     return {point1, point2};
 }
 
-// Elipsoid uzayını birim küre uzayına dönüştürür.
+// Transforms ellipsoid space into unit sphere space.
 Eigen::Vector3d SweptConflictAnnotation::scale_pos(const Eigen::Vector3d& pos, const RobotModel& model) {
     return Eigen::Vector3d(pos.x() / model.rx, pos.y() / model.ry, pos.z() / model.rz);
 }
@@ -92,20 +92,20 @@ std::map<int, std::set<int>> SweptConflictAnnotation::findConEV(){
 
     for (const auto& e : graph.getEdges()) {
         for (const auto& v : graph.getVertices()) {
-            // Kenarın kendi başlangıç/bitiş noktalarıyla çakışmasını kontrol etme
+            // Do not check collision with the edge's own start/end vertices.
             if (e.from == v.id || e.to == v.id) continue;
 
-            // Elipsoid çarpışma kontrolü için uzayı ölçekle
+            // Scale the space for ellipsoid collision checking.
             Eigen::Vector3d e_from_scaled = scale_pos(graph.vertices[e.from].pos, robotModel);
             Eigen::Vector3d e_to_scaled   = scale_pos(graph.vertices[e.to].pos, robotModel);
             Eigen::Vector3d v_pos_scaled  = scale_pos(v.pos, robotModel);
 
-            // Ölçeklenmiş uzayda en yakın noktayı bul
+            // Find the closest point in scaled space.
             auto point_on_segment_scaled = segment_to_point(e_from_scaled, e_to_scaled, v_pos_scaled);
 
-            // İki elipsoid çarpışması için, ölçeklenmiş uzayda merkezler arası
-            // uzaklığın karesi 4'ten küçük olmalıdır. Bu, Minkowski toplamının
-            // yarıçapı 2 katına çıkarmasından kaynaklanır (uzaklık < 2 -> uzaklık^2 < 4).
+            // For two ellipsoids to collide, the squared distance between centers
+            // in scaled space must be less than 4. This comes from the Minkowski
+            // sum doubling the radius (distance < 2 -> distance^2 < 4).
             if ((v_pos_scaled - point_on_segment_scaled).squaredNorm() < 4.0) {
                 conEV[e.id].insert(v.id);
             }
@@ -124,17 +124,17 @@ std::map<int, std::set<int>> SweptConflictAnnotation::findConEE(){
             const auto& e = graph.edges[i];
             const auto& f = graph.edges[j];
 
-            // Elipsoid çarpışma kontrolü için uzayı ölçekle
+            // Scale the space for ellipsoid collision checking.
             Eigen::Vector3d e_from_scaled = scale_pos(graph.vertices[e.from].pos, robotModel);
             Eigen::Vector3d e_to_scaled   = scale_pos(graph.vertices[e.to].pos, robotModel);
             Eigen::Vector3d f_from_scaled = scale_pos(graph.vertices[f.from].pos, robotModel);
             Eigen::Vector3d f_to_scaled   = scale_pos(graph.vertices[f.to].pos, robotModel);
 
-            // Ölçeklenmiş uzayda en yakın noktaları bul
+            // Find the closest points in scaled space.
             auto [p1_scaled, p2_scaled] = segment_to_segment(e_from_scaled, e_to_scaled, f_from_scaled, f_to_scaled);
-            // İki elipsoid çarpışması için, ölçeklenmiş uzayda en yakın noktalar arası
-            // uzaklığın karesi 4'ten küçük olmalıdır. Bu, Minkowski toplamının
-            // yarıçapı 2 katına çıkarmasından kaynaklanır (uzaklık < 2 -> uzaklık^2 < 4).
+            // For two ellipsoids to collide, the squared distance between closest
+            // points in scaled space must be less than 4. This comes from the
+            // Minkowski sum doubling the radius (distance < 2 -> distance^2 < 4).
             if ((p1_scaled - p2_scaled).squaredNorm() < 4.0) {
                 conEE[e.id].insert(f.id);
                 conEE[f.id].insert(e.id);

@@ -12,7 +12,7 @@ Vertex::Vertex(int id, const Eigen::Vector3d& pos) : id(id), pos(pos) {}
 Edge::Edge(int id, int from, int to, double cost)
     : id(id), from(from), to(to), cost(cost) {}
 
-// ── En Yakın Vertex'i bul ─────────────────────────────
+// ── Find Nearest Vertex ─────────────────────────────
 int Graph::findNearestVertex(const Eigen::Vector3d& pos) const{
     int best = -1;
     double best_dist = 1e9;
@@ -27,7 +27,7 @@ int Graph::findNearestVertex(const Eigen::Vector3d& pos) const{
     return best;
 }
 
-// ── Dijkstra - strat'tan -> tüm vertex'lere mesafe ─────────────────────────────
+// ── Dijkstra - distance from start to all vertices ─────────────────────────────
 std::vector<double> Graph::dijkstra(int start) const {
     std::vector<double> dist(vertices.size(), 1e9);
 
@@ -56,23 +56,23 @@ std::vector<double> Graph::dijkstra(int start) const {
     return dist;
 }
 
-// ── Vertex ekle, id döndür ────────────────────────────────────────
+// ── Add Vertex, return id ────────────────────────────────────────
 int Graph::addVertex(const Eigen::Vector3d& pos) {
     int id = static_cast<int>(vertices.size());
     vertices.emplace_back(id, pos);
     adjacency[id] = {};
     edge_index[id] = {};
     return id;
-}
+} 
 
-// ── Kenar ekle (undirected) — edge id döndürür, zaten varsa mevcut id döner
+// ── Add Edge (undirected) — returns edge id, if already exists returns existing id
 int Graph::addEdge(int from, int to) {
     if (from < 0 || from >= static_cast<int>(vertices.size()) ||
         to   < 0 || to   >= static_cast<int>(vertices.size())){
-        throw std::out_of_range("addEdge: geçersiz vertex id");
+        throw std::out_of_range("addEdge: invalid vertex id");
     }
 
-    // Zaten varsa mevcut edge id'yi döndür
+    // If it already exists, return the existing edge id
     if (edge_index.count(from) && edge_index[from].count(to))
         return edge_index[from][to];
 
@@ -84,7 +84,7 @@ int Graph::addEdge(int from, int to) {
     double cost = (vertices[u].pos - vertices[v].pos).norm();
     edges.emplace_back(eid, u, v, cost);
 
-    // Her iki yön de aynı edge id'ye işaret etsin
+    // Both directions should point to the same edge id
     edge_index[u][v] = eid;
     edge_index[v][u] = eid;
 
@@ -93,8 +93,7 @@ int Graph::addEdge(int from, int to) {
 
     return eid;
 }
-
-// ── Edge id'den Edge nesnesine eriş ──────────────────────────────
+// ── Access Edge object from Edge id ──────────────────────────────
 const Edge& Graph::getEdge(int edge_id) const {
     return edges.at(edge_id);
 }
@@ -102,22 +101,20 @@ const Edge& Graph::getEdge(int edge_id) const {
 const Vertex& Graph::getVertex(int vertex_id) const{
     return vertices.at(vertex_id);
 }
-
-// ── (from, to) çiftinden edge id'ye eriş (-1: yok) ───────────────
+// ── Access edge id from (from, to) pair (-1: not found) ───────────────
 int Graph::getEdgeId(int from, int to) const {
     auto it = edge_index.find(from);
     if (it == edge_index.end()) return -1;
     auto jt = it->second.find(to);
     if (jt == it->second.end()) return -1;
     return jt->second;
-}
+} 
 
-// ── Komşuları döndür ─────────────────────────────────────────────
+// ── Return Neighbors ─────────────────────────────────────────────
 const std::vector<int>& Graph::neighbors(int id) const {
     return adjacency.at(id);
 }
-
-// ── İstatistik ───────────────────────────────────────────────────
+// ── Statistics ───────────────────────────────────────────────────
 void Graph::printStats() const {
     std::cout << "Graph: "
                 << vertices.size() << " vertices, "
@@ -125,19 +122,18 @@ void Graph::printStats() const {
 }
 
 // ── CSV'ye kaydet ─────────────────────────────────────────────────
-void Graph::saveToCSV(const std::string& vertex_file,
+void Graph::saveToCSV(const std::string& vertex_file, 
                 const std::string& edge_file) const {
 
     std::ofstream vf(vertex_file);
-    if (!vf) throw std::runtime_error("Vertex dosyası açılamadı: " + vertex_file);
+    if (!vf) throw std::runtime_error("Could not open vertex file: " + vertex_file);
     vf << "id,x,y,z\n";
     for (const auto& v : vertices)
         vf << v.id << ","
             << v.pos.x() << "," << v.pos.y() << "," << v.pos.z() << "\n";
 
-    // edges zaten tekil (from < to), doğrudan yaz
     std::ofstream ef(edge_file);
-    if (!ef) throw std::runtime_error("Edge dosyası açılamadı: " + edge_file);
+    if (!ef) throw std::runtime_error("Could not open edge file: " + edge_file);
     ef << "edge_id,from,to,cost,from_x,from_y,from_z,to_x,to_y,to_z\n";
     for (const auto& e : edges) {
         const auto& a = vertices[e.from].pos;
@@ -147,7 +143,7 @@ void Graph::saveToCSV(const std::string& vertex_file,
             << a.x()  << "," << a.y() << "," << a.z() << ","
             << b.x()  << "," << b.y() << "," << b.z() << "\n";
     }
-    std::cout << "Kaydedildi: " << vertex_file << ", " << edge_file << "\n";
+    std::cout << "Saved: " << vertex_file << ", " << edge_file << "\n";
 }
 
 const std::vector<Vertex>& Graph::getVertices() const { return vertices; }

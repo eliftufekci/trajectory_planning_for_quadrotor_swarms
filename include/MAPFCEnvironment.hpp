@@ -47,8 +47,8 @@ public:
 private:
     const Graph& graph;
     const ConflictAnnotation& annotation;
-    size_t m_agentIdx; // şu anda hangi agent için low-level serach yapılıyor 
-    const Constraints* m_constraints; // o agent için aktif constraint seti
+    size_t m_agentIdx; // agent currently being processed by the low-level search
+    const Constraints* m_constraints; // active constraint set for that agent
     int m_lastGoalConstraint;
     int m_highLevelExpanded;
     int m_lowLevelExpanded;

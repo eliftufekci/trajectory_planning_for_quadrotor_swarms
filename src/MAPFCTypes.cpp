@@ -1,6 +1,6 @@
 #include "MAPFCTypes.hpp"
 
-// ─── State İimplementasyonu ──────────────────────────────────────────
+// State implementation.
 State::State(int time, int vertex_id) : time(time), vertex_id(vertex_id) {}
 
 bool State::operator==(const State& s) const {
@@ -15,7 +15,7 @@ std::ostream& operator<<(std::ostream& os, const State& s) {
     return os << s.time << ": (" << s.vertex_id << ")";
 }
 
-// KURAL: .cpp içinde 'std::' namespace'ini açıkça belirtmeliyiz.
+// Rule: explicitly use the 'std::' namespace in .cpp files.
 namespace std {
     size_t hash<State>::operator()(const State& s) const {
         std::hash<int> hasher;
@@ -25,11 +25,11 @@ namespace std {
     }
 }
 
-// ─── Action İimplementasyonu ─────────────────────────────────────────
+// Action implementation.
 Action::Action(int edge_id) : edge_id(edge_id) {}
 
-// ─── Conflict İimplementasyonu ───────────────────────────────────────
-// KURAL: 'friend' kelimesi .cpp dosyasında kullanılmaz! Sadece düz fonksiyon gibi yazılır.
+// Conflict implementation.
+// Rule: the 'friend' keyword is not used in .cpp files; write it as a regular function.
 std::ostream& operator<<(std::ostream& os, const Conflict& c) {
     switch (c.type) {
         case Conflict::vertex:
@@ -46,7 +46,7 @@ std::ostream& operator<<(std::ostream& os, const Conflict& c) {
     return os;
 }
 
-// ─── VertexConstraint İimplementasyonu ────────────────────────────────
+// VertexConstraint implementation.
 VertexConstraint::VertexConstraint(int time, int vertex_id) : time(time), vertex_id(vertex_id) {}
 
 bool VertexConstraint::operator==(const VertexConstraint& vc) const {
@@ -66,7 +66,7 @@ namespace std {
     }
 }
 
-// ─── EdgeConstraint İimplementasyonu ──────────────────────────────────
+// EdgeConstraint implementation.
 EdgeConstraint::EdgeConstraint(int time, int edge_id) : time(time), edge_id(edge_id) {}
 
 bool EdgeConstraint::operator==(const EdgeConstraint& ec) const {
@@ -86,7 +86,7 @@ namespace std {
     }
 }
 
-// ─── Constraints İimplementasyonu ─────────────────────────────────────
+// Constraints implementation.
 void Constraints::add(const Constraints& other) {
     vertexConstraints.insert(other.vertexConstraints.begin(), other.vertexConstraints.end());
     edgeConstraints.insert(other.edgeConstraints.begin(), other.edgeConstraints.end());

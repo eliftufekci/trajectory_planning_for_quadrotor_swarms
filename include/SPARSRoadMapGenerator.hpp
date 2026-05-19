@@ -24,10 +24,10 @@ class SPARSRoadMapGenerator : public RoadMapGenerator{
 public:
     double sparseDeltaFraction;
 
-    // sparseDeltaFraction : SPARS δ parametresi (space diagonal'ına oranı).
-    //                       OMPL bunu sparseDelta = fraction * space_diagonal olarak kullanır.
-    //                       connectRadius: start/goal bağlama için kullanılan yarıçap.
-    //                       Negatif bırakılırsa → sparseDelta değerine otomatik eşitlenir.
+    // sparseDeltaFraction: SPARS delta parameter (as a ratio of the space diagonal).
+    //                      OMPL uses it as sparseDelta = fraction * space_diagonal.
+    //                      connectRadius: radius used to connect starts/goals.
+    //                      If left negative, it is automatically set to sparseDelta.
     SPARSRoadMapGenerator(const Environment& env, const RobotModel& robot,
                           const FCLCollisionChecker& collisionChecker,
                           double sparseDeltaFraction = 0.05,
@@ -38,11 +38,11 @@ public:
     bool isStateValid(const ob::State* state);
 
 private:
-    double connectRadius_;   // start/goal bağlama yarıçapı
+    double connectRadius_;   // start/goal connection radius
 
-    // SPARS'ın kendi δ'sıyla tutarlı bir search radius hesapla.
-    // OMPL içinde: sparseDelta = sparseDeltaFraction * space_diagonal
-    // connectRadius negatifse aynı formülü kullan → tutarlılık sağlanır.
+    // Compute a search radius consistent with SPARS's own delta.
+    // In OMPL: sparseDelta = sparseDeltaFraction * space_diagonal.
+    // If connectRadius is negative, use the same formula to keep it consistent.
     double computeSearchRadius() const;
 
     void addVertices(Graph& graph,
@@ -57,8 +57,8 @@ private:
 
     void connectAgents(Graph& graph);
 
-    // Makale Section IV: "connect to up to six neighbors within a search radius
+    // Paper Section IV: "connect to up to six neighbors within a search radius
     //                     if the edge could be traversed without collision"
-    // Başarı durumunda vertex ID'si, başarısızlıkta -1 döndürür.
+    // Returns the vertex ID on success, or -1 on failure.
     int connectPoint(const Eigen::Vector3d& point, Graph& graph);
 };

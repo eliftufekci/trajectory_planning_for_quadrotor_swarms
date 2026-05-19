@@ -7,30 +7,30 @@
 #include <yaml-cpp/yaml.h>
 
 
-// ─────────────────────────────────────────────
-//  Yardımcı: YAML dizisini Vector3d'ye çevir
-// ─────────────────────────────────────────────
+// ------------------------------------------------------------
+//  Helper: convert a YAML sequence to Vector3d.
+// ------------------------------------------------------------
 inline Eigen::Vector3d yamlToVec3(const YAML::Node& node);
 
-// ─────────────────────────────────────────────
-//  AABB — Axis-Aligned Bounding Box
-// ─────────────────────────────────────────────
+// ------------------------------------------------------------
+//  AABB - Axis-Aligned Bounding Box
+// ------------------------------------------------------------
 struct AABB {
     Eigen::Vector3d min;
     Eigen::Vector3d max;
 
     AABB(const Eigen::Vector3d& min, const Eigen::Vector3d& max);
 
-    // YAML node'dan doğrudan oluştur
+    // Build directly from a YAML node.
     explicit AABB(const YAML::Node& node);
 
     bool contains(const Eigen::Vector3d& p) const;
     
 };
 
-// ─────────────────────────────────────────────
-//  Agent — başlangıç / hedef çifti
-// ─────────────────────────────────────────────
+// ------------------------------------------------------------
+//  Agent - start/goal pair.
+// ------------------------------------------------------------
 struct Agent {
     int id;
     Eigen::Vector3d start;
@@ -38,22 +38,22 @@ struct Agent {
     explicit Agent(const YAML::Node& node);
 };
 
-// ─────────────────────────────────────────────
+// ------------------------------------------------------------
 //  Environment
-// ─────────────────────────────────────────────
+// ------------------------------------------------------------
 class Environment {
 public:
-    // OcTree'nin sahipliğini Environment üstleniyor (unique_ptr ile sızıntı yok)
+    // Environment owns the OcTree (unique_ptr prevents leaks).
     std::unique_ptr<octomap::OcTree> tree;
 
     Eigen::Vector3d world_min;
     Eigen::Vector3d world_max;
 
     std::vector<AABB> obstacles;
-    std::vector<Agent> agents;      // starts + goals buradan okunur
+    std::vector<Agent> agents;      // starts + goals are read from here
 
     bool labeled;
-    std::vector<Eigen::Vector3d> goal_positions; // Sadece labeled=false ise kullanılır
+    std::vector<Eigen::Vector3d> goal_positions; // Used only when labeled=false.
 
     Environment();
 

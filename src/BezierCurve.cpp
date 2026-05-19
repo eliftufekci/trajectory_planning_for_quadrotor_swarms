@@ -120,7 +120,7 @@ std::vector<Eigen::Vector3d> BezierCurve::compute_control_points(const SafePolyh
     const Eigen::Vector3d& start_pos = environment->agents[agent_id].start;
     const Eigen::Vector3d& goal_pos = subdividedSchedule.positions[agent_id].back();
 
-    // --- 1. Hessian Matrisi (P) ---
+    // --- 1. Hessian matrix (P) ---
     // Cost = y^T * P * y
     // P = B^T * Q_mono * B, where B is Bezier-to-Monomial conversion
     Eigen::MatrixXd Q_mono_1d = get_total_Q_mono_matrix(user_parameter, K, T_piece);
@@ -140,10 +140,10 @@ std::vector<Eigen::Vector3d> BezierCurve::compute_control_points(const SafePolyh
     }
     P.setFromTriplets(P_triplets.begin(), P_triplets.end());
 
-    // --- 2. Gradyan Vektörü (q) ---
+    // --- 2. Gradient vector (q) ---
     Eigen::VectorXd q = Eigen::VectorXd::Zero(n_vars);
 
-    // --- 3. Kısıtlar (A, l, u) ---
+    // --- 3. Constraints (A, l, u) ---
     std::vector<Eigen::Triplet<double>> A_triplets;
     std::vector<double> l_vec, u_vec;
     int constraint_idx = 0;
@@ -151,8 +151,8 @@ std::vector<Eigen::Vector3d> BezierCurve::compute_control_points(const SafePolyh
     // a. Corridor Constraints: y_k,d in P_k
     const double inf = std::numeric_limits<double>::infinity();
     for (int k = 0; k < K; ++k) {
-        // goal'a ulaşıldıktan sonra tüm control pointler pinned,
-        // corridor constraint çakışma yaratır — skip
+        // After the goal is reached, all control points are pinned;
+        // corridor constraints would conflict, so skip them.
         if (k >= goal_piece) continue;
 
         for (int d = 0; d <= D; ++d) {
@@ -180,7 +180,7 @@ std::vector<Eigen::Vector3d> BezierCurve::compute_control_points(const SafePolyh
     A_triplets.emplace_back(constraint_idx, last_cp_idx + n_vars_per_dim, 1.0);  l_vec.push_back(goal_pos.y());  u_vec.push_back(goal_pos.y());  constraint_idx++;
     A_triplets.emplace_back(constraint_idx, last_cp_idx + 2*n_vars_per_dim, 1.0);  l_vec.push_back(goal_pos.z());  u_vec.push_back(goal_pos.z());  constraint_idx++;
 
-    // Goal pinning constraints: bezier curvelar robot rotasından çok sapmasın diye
+    // Goal pinning constraints: keep Bezier curves from drifting too far from the robot route.
     for (int k = goal_piece; k < K; ++k) {
         for (int d = 0; d <= D; ++d) {
             int cp_idx = k * (D + 1) + d;
@@ -517,7 +517,7 @@ std::vector<Eigen::Vector3d> BezierCurve::compute_control_points(const SafePolyh
     Eigen::VectorXd l = Eigen::Map<Eigen::VectorXd>(l_vec.data(), l_vec.size());
     Eigen::VectorXd u = Eigen::Map<Eigen::VectorXd>(u_vec.data(), u_vec.size());
 
-    // --- 5. Solver'ı kur ve çöz ---
+    // --- 5. Set up and solve the solver ---
     OsqpEigen::Solver solver;
     solver.settings()->setVerbosity(false);
     solver.data()->setNumberOfVariables(n_vars);
@@ -567,7 +567,7 @@ std::vector<std::vector<Eigen::Vector3d>> BezierCurve::compute(  const SafePolyh
     all_control_points.resize(environment->agents.size());
     for (size_t i = 0; i < environment->agents.size(); i++) {
         all_control_points[i] = compute_control_points(
-            safe_polyhedron, i, user_parameter, K, T_total, goal_pieces[i]); // ← ekle
+            safe_polyhedron, i, user_parameter, K, T_total, goal_pieces[i]); // add
     }
     return all_control_points;
 }
@@ -581,7 +581,7 @@ std::vector<Eigen::Vector3d> BezierCurve::linear_fallback(   const Eigen::Vector
     control_points.reserve(K * (D + 1));
 
     const auto& waypoints = subdividedSchedule.positions[agent_id];
-    // waypoints.size() == K+1 olmalı (k=0...k)
+    // waypoints.size() must be K+1 (k=0...K).
     for (int k = 0; k < K; ++k) {
         Eigen::Vector3d p_start = (k < (int)waypoints.size()) ? waypoints[k] : start_pos;
         Eigen::Vector3d p_end = ((k+1) < (int)waypoints.size()) ? waypoints[k+1] : goal_pos;

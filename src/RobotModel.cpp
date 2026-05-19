@@ -9,11 +9,11 @@ RobotModel::RobotModel(double radius, double rx, double ry, double rz)
 
 bool RobotModel::collides(const Eigen::Vector3d& qi, const Eigen::Vector3d& qj) const {
     Eigen::Vector3d d = qi - qj;
-    // İki özdeş elipsoidin çarpışma kontrolü, Minkowski toplamı konsepti kullanılarak yapılır.
-    // İki elipsoid, merkezlerini birleştiren vektör (d), yarı eksenleri orijinal
-    // elipsoidin iki katı olan (2*rx, 2*ry, 2*rz) daha büyük bir elipsoidin
-    // içine düşerse çarpışır.
-    // standart elipsiot denklemi: x^2/a^2 + y^2/b^2 + z^2/c^2 = 1
+    // Collision between two identical ellipsoids is checked using the Minkowski sum.
+    // The two ellipsoids collide if the vector between their centers (d) falls
+    // inside a larger ellipsoid whose semi-axes are twice the original ellipsoid
+    // axes: (2*rx, 2*ry, 2*rz).
+    // Standard ellipsoid equation: x^2/a^2 + y^2/b^2 + z^2/c^2 = 1.
     double val = (d.x() * d.x()) / (4 * rx * rx) +
                  (d.y() * d.y()) / (4 * ry * ry) +
                  (d.z() * d.z()) / (4 * rz * rz);

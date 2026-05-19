@@ -6,7 +6,7 @@
 #include <numeric>
 
 
-// start_vertices[i] -> goal_vertices[assignment[i]] eşleşmesini döndürür
+// Returns the mapping start_vertices[i] -> goal_vertices[assignment[i]].
 std::vector<int> GoalAssigner::assign(const Graph& graph,
                         const std::vector<int>& start_vertices,
                         const std::vector<int>& goal_vertices) {
@@ -27,10 +27,10 @@ std::vector<int> GoalAssigner::assign(const Graph& graph,
 }
 
 
-// Bottleneck assignment: en uzun tek yolu minimize et
+// Bottleneck assignment: minimize the longest individual path.
 std::vector<int> GoalAssigner::thresholdAssign(const std::vector<std::vector<double>>& cost, int N){
 
-    // Tüm cost değerlerini topla ve sırala
+    // Collect and sort all cost values.
     std::vector<double> sorted_costs;
     for (auto& row : cost){
         for (double v : row){
@@ -42,20 +42,20 @@ std::vector<int> GoalAssigner::thresholdAssign(const std::vector<std::vector<dou
     std::sort(sorted_costs.begin(), sorted_costs.end());
     sorted_costs.erase(std::unique(sorted_costs.begin(), sorted_costs.end()), sorted_costs.end());
 
-    // En küçük threshold'dan başl ,perfect mathicnh bulunana kadar dene
+    // Start from the smallest threshold and try until a perfect matching is found.
     for (double threshold : sorted_costs) {
         auto assignment = tryBipartiteMatch(cost, N, threshold);
         if ((int)assignment.size() == N)
             return assignment;
     }
 
-    // Fallback: sıralı atama
+    // Fallback: ordered assignment.
     std::vector<int> fallback(N);
     std::iota(fallback.begin(), fallback.end(), 0);
     return fallback;
 }
 
-// Verilen threshold ile bipartite matching (augmenting path)
+// Bipartite matching with the given threshold (augmenting path).
 std::vector<int> GoalAssigner::tryBipartiteMatch( const std::vector<std::vector<double>>& cost, 
                                     int N, 
                                     double threshold){
@@ -69,7 +69,7 @@ std::vector<int> GoalAssigner::tryBipartiteMatch( const std::vector<std::vector<
         augment(i, cost, threshold, matchL, matchR, visited, N);
     }
 
-    // Tüm robotlar eşleştiyse döndür
+    // Return if all robots are matched.
     for (int i = 0; i < N; i++){
         if (matchL[i] == -1) 
             return {};

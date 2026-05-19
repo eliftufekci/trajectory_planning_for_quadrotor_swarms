@@ -8,15 +8,15 @@ class Graph;
 
 class GoalAssigner {
 public:
-    // start_vertices[i] -> goal_vertices[assignment[i]] eşleşmesini döndürür
+    // Returns the mapping start_vertices[i] -> goal_vertices[assignment[i]].
     std::vector<int> assign(const Graph& graph,
                             const std::vector<int>& start_vertices,
                             const std::vector<int>& goal_vertices);
 private:
-    // Bottleneck assignment: en uzun tek yolu minimize et
+    // Bottleneck assignment: minimize the longest individual path.
     std::vector<int> thresholdAssign(const std::vector<std::vector<double>>& cost, int N);
 
-    // Verilen threshold ile bipartite matching (augmenting path)
+    // Bipartite matching with the given threshold (augmenting path).
     std::vector<int> tryBipartiteMatch( const std::vector<std::vector<double>>& cost, 
                                         int N, 
                                         double threshold);

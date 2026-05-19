@@ -2,21 +2,21 @@
 #include <Eigen/Dense>
 
 
-// Makale Eq.(3): RR(q) = { Ex + q : ||x||₂ ≤ 1 }
+// Paper Eq.(3): RR(q) = { Ex + q : ||x||2 <= 1 }
 // E = diag(rx, ry, rz)
-// Quadrotor için: rx = ry << rz  (downwash modeli)
+// For quadrotors: rx = ry << rz (downwash model)
 struct RobotModel {
-    // Ortam çakışması için robot hacmi (çevre engellere karşı)
-    double radius;       // tek yarıçap (küre varsayımı — makale Sec. IV-A)
+    // Robot volume for environment collisions (against surrounding obstacles).
+    double radius;       // single radius (sphere assumption, paper Sec. IV-A)
 
-    // Robot-robot çakışması için ellipsoid yarıçapları (downwash)
+    // Ellipsoid radii for robot-robot collisions (downwash).
     double rx, ry, rz;  // rx == ry << rz
 
-    // ── Varsayılan: Crazyflie nano-quadrotor benzeri ──────────────────
+    // Default: similar to a Crazyflie nano-quadrotor.
     RobotModel();
     RobotModel(double radius, double rx, double ry, double rz);
 
-    // ── İki robot çakışıyor mu? (ellipsoid-ellipsoid) ─────────────────
-    // Basit yöntem: normalize edilmiş mesafe < 1 ise çakışma var
+    // Do two robots collide? (ellipsoid-ellipsoid)
+    // Simple method: there is a collision if the normalized distance is < 1.
     bool collides(const Eigen::Vector3d& qi, const Eigen::Vector3d& qj) const;
 };

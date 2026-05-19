@@ -43,16 +43,16 @@ public:
         double max_velocity);
 
 private:
-    // agent başına, timestep başına S nokta
-    // current_trajectories[agent] → K*(D+1) control point listesi
-    // k. piece için control pointler: indeks k*(D+1) ... k*(D+1)+D
+    // S points per agent and timestep.
+    // current_trajectories[agent] -> K*(D+1) control point list.
+    // Control points for the k-th piece: indices k*(D+1) ... k*(D+1)+D.
     std::vector<std::vector<std::vector<Eigen::Vector3d>>> sampleTrajectories(const std::vector<std::vector<Eigen::Vector3d>>& trajectories);
 
-    // t_local: 0.0 ile 1.0 arasında (zaman yüzdesi)
-    // control_points: O segmente ait 8 nokta (D=7 için)
+    // t_local: between 0.0 and 1.0 (time percentage).
+    // control_points: 8 points belonging to that segment (for D=7).
     Eigen::Vector3d sampleBezier(double t_local, const std::vector<Eigen::Vector3d>& control_points);
 
-    // belirli bir türev derecesi için sadece kontrol noktalarını döndürür
+    // Returns only the control points for a specific derivative order.
     std::vector<Eigen::Vector3d> getDerivativeControlPoints(const std::vector<Eigen::Vector3d>& cps, double T_piece, int c);
 
     bool checkLimits(

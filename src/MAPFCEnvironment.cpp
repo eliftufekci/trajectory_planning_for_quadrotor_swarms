@@ -334,7 +334,7 @@ State MAPFCEnvironment::getState(size_t agentIdx, const std::vector<libMultiRobo
         return solution[agentIdx].states[t].first;
     }
 
-    return solution[agentIdx].states.back().first; // goalde bekliyor
+    return solution[agentIdx].states.back().first; // waits at the goal
 }
 
 bool MAPFCEnvironment::stateValid(const State& s) {
@@ -346,4 +346,3 @@ bool MAPFCEnvironment::transitionValid(int time, int edge_id) {
     const auto& con = m_constraints->edgeConstraints;
     return con.find(EdgeConstraint(time, edge_id)) == con.end();
 }
-
