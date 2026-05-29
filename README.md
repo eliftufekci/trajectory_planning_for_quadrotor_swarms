@@ -19,6 +19,39 @@ The planner follows a multi-stage pipeline:
 
 The executable writes roadmap, path, hyperplane, and control point data to CSV files. The repository includes both a Plotly-based HTML visualizer and a lightweight pygame viewer for watching the robots move along the optimized trajectories.
 
+<img width="425" alt="RoadMap Generation and Conflict Annotation" src="https://github.com/user-attachments/assets/784f13f0-ac4b-4634-bb4b-977dbadccdbe" />
+<br>
+RoadMap Generation and Conflict Annotation
+
+<br><br>
+
+<img width="425" alt="Discrete Planning" src="https://github.com/user-attachments/assets/7ddfe7f0-3d9e-42d7-a66e-6f99b997db85" />
+<br>
+Discrete Planning
+
+<br><br>
+
+<img width="425" alt="Continuous Refinement" src="https://github.com/user-attachments/assets/d5a5f770-cead-4cd2-9b91-20bb87c0d3ce" />
+<br>
+Continuous Refinement
+
+<br><br>
+
+<img width="425" alt="Labelled Planner" src="https://github.com/user-attachments/assets/42151ab7-ee22-4933-90ba-22cb4ab5e715" />
+<br>
+Labelled Planner
+
+<br><br>
+
+<img width="425" alt="Unlabelled Planner" src="https://github.com/user-attachments/assets/201f78b1-24a7-4896-bcca-2b743327319e" />
+<br>
+Unlabelled Planner
+
+<br><br>
+
+[Sample Simulation](https://github.com/user-attachments/assets/799e5696-5fdb-4e90-a20f-c70a15eb7168)
+
+
 ## Features
 
 - 3D YAML environment loading
